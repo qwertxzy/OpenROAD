@@ -65,6 +65,38 @@ class Point
   int y_ = 0;
 };
 
+// LEO: Simple 2d vector class
+class Vector2D
+{
+  public:
+   Vector2D() = default;
+   Vector2D(const Vector2D& v) = default;
+   Vector2D(float x, float y);
+   Vector2D(const Point& a, const Point& b);
+   ~Vector2D() = default;
+
+   Vector2D operator+(const Vector2D& rhs) const;
+   Vector2D operator-(const Vector2D& rhs) const;
+   bool operator==(const Vector2D& rhs) const;
+   Vector2D& operator+=(const Vector2D& rhs);
+   Vector2D& operator-=(const Vector2D& rhs);
+   bool operator!=(const Vector2D& rhs) const { return !(*this == rhs); };
+   Vector2D operator*(float rhs) const;
+
+   float getX() const { return x_; }
+   float getY() const { return y_; }
+   void setX(float x) { x_ = x; }
+   void setY(float y) { y_ = y; }
+
+   double getMagnitude() const;
+   void normalize();
+
+  private:
+   float x_ = 0;
+   float y_ = 0;
+};
+
+
 std::ostream& operator<<(std::ostream& os, const Point& pIn);
 
 class Point3D
@@ -529,6 +561,67 @@ class Line
 };
 
 std::ostream& operator<<(std::ostream& os, const Rect& box);
+
+// LEO: Implementation for Vector2D
+inline Vector2D::Vector2D(float x, float y)
+{
+  x_ = x;
+  y_ = y;
+}
+
+inline Vector2D::Vector2D(const Point& a, const Point& b)
+{
+  x_ = b.getX() - a.getX();
+  y_ = b.getY() - a.getY();
+}
+
+inline Vector2D Vector2D::operator+(const Vector2D& rhs) const
+{
+  return Vector2D(x_ + rhs.x_, y_ + rhs.y_);
+}
+
+inline Vector2D Vector2D::operator-(const Vector2D& rhs) const
+{
+  return Vector2D(x_ - rhs.x_, y_ - rhs.y_);
+}
+
+inline bool Vector2D::operator==(const Vector2D& rhs) const
+{
+  return (x_ == rhs.x_) && (y_ == rhs.y_);
+}
+
+[[maybe_unused]] inline Vector2D& Vector2D::operator+=(const Vector2D& rhs)
+{
+  this->x_ += rhs.x_;
+  this->y_ += rhs.y_;
+  
+  return *this;
+}
+
+[[maybe_unused]] inline Vector2D& Vector2D::operator-=(const Vector2D& rhs)
+{
+  this->x_ -= rhs.x_;
+  this->y_ -= rhs.y_;
+  
+  return *this;
+}
+
+inline Vector2D Vector2D::operator*(float rhs) const
+{
+  return Vector2D(x_ * rhs, y_ * rhs);
+}
+
+inline double Vector2D::getMagnitude() const
+{
+  return std::sqrt(x_ * x_ + y_ * y_);
+}
+
+inline void Vector2D::normalize()
+{
+  const double mag = getMagnitude();
+  x_ /= mag;
+  y_ /= mag;
+}
 
 inline Point::Point(int x, int y)
 {

@@ -26,6 +26,7 @@
 #include "odb/db.h"
 #include "odb/util.h"
 #include "util/journal.h"
+#include "odb/geom.h"
 #include "utl/Logger.h"
 
 namespace dpl {
@@ -37,6 +38,9 @@ using utl::DPL;
 
 using odb::dbInst;
 using odb::Rect;
+using odb::Vector2D;
+
+using utl::format_as;
 
 ////////////////////////////////////////////////////////////////
 
@@ -56,6 +60,86 @@ Opendp::Opendp(odb::dbDatabase* db, Logger* logger) : logger_(logger), db_(db)
   grid_->init(logger);
   network_ = std::make_unique<Network>();
   arch_ = std::make_unique<Architecture>();
+}
+
+// LEO: Method to unplace std cells but lock macros
+void Opendp::unplaceStdCells() {
+  importDb();
+  for (Cell& cell : cells_) {
+    // Unplace all std cells and lock all others (macros)
+    if (cell.isStdCell()) {
+      cell.db_inst_->setPlacementStatus(odb::dbPlacementStatus::UNPLACED);
+    } else {
+      cell.db_inst_->setPlacementStatus(odb::dbPlacementStatus::LOCKED);
+    }
+  }
+}
+
+// LEO: Method to fix slight overlaps between macros after GPL
+// Plan:
+//  - For every pair of macros, calculate overlap
+//  - Apply a force to both macros that moves them away from the overlap center
+//  - Do this for all macros, sum up force vectors
+//  - Iterate until all overlaps are fixed
+void Opendp::fixMacroPlacement() {
+  importDb();
+
+  // Get a list of all macros
+  std::vector<Cell*> macros;
+  for (Cell& cell : cells_) {
+    if (!cell.isStdCell()) {
+      macros.push_back(&cell);
+    }
+  }
+
+  // TODO: what about halos?
+
+  // TODO: loop until all overlaps are fixed
+
+  // TODO: make this a parameter
+  // also float / int with vec2d??
+  // float force_multiplier = 1.0;
+
+  // Save force vectors for every macro
+  std::map<Cell*, Vector2D> forces;
+
+  // Calculate displacement forces between all pairs of macros
+  for (int i = 0; i < macros.size(); i++) {
+    for (int j = i + 1; j < macros.size(); j++) {
+      Cell* macro1 = macros[i];
+      Cell* macro2 = macros[j];
+      GridRect macro1_grid_rect = grid_->gridCovering(macro1);
+      GridRect macro2_grid_rect = grid_->gridCovering(macro2);
+      GridRect overlap_rect = macro1_grid_rect.intersect(macro2_grid_rect);
+      // Check if overlap is nonzero
+      if (overlap_rect.xlo < overlap_rect.xhi && overlap_rect.ylo < overlap_rect.yhi) {
+        // Calculate force vectors based on overlap rect
+        Point overlap_center = overlap_rect.toRect().center();
+       
+        // For macro1
+        Point macro1_center = macro1_grid_rect.toRect().center();
+        Vector2D force_vector1 = Vector2D(overlap_center, macro1_center);
+        force_vector1.normalize();
+        forces[macro1] += force_vector1 * overlap_rect.toRect().area();
+
+        // For macro2
+        Point macro2_center = macro2_grid_rect.toRect().center();
+        Vector2D force_vector2 = Vector2D(overlap_center, macro2_center);
+        force_vector2.normalize();
+        forces[macro2] += force_vector2 * overlap_rect.toRect().area();
+      }
+    }
+  }
+
+  // Apply forces to all macros
+  for (auto& force : forces) {
+    Cell* macro = force.first;
+    Vector2D force_vector = force.second;
+    macro->x_ += force_vector.getX();
+    macro->y_ += force_vector.getY();
+
+    logger_->info(DPL, 0, "Applying force to {}: ({}, {})", macro->name(), force_vector.getX(), force_vector.getY());
+  }
 }
 
 Opendp::~Opendp() = default;

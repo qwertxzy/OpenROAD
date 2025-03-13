@@ -30,6 +30,20 @@ detailed_placement_cmd(int max_displacment_x,
 }
 
 void
+unplace_std_cells()
+{
+  dpl::Opendp *opendp = ord::OpenRoad::openRoad()->getOpendp();
+  opendp->unplaceStdCells();
+}
+
+void
+fix_macro_placement()
+{
+  dpl::Opendp *opendp = ord::OpenRoad::openRoad()->getOpendp();
+  opendp->fixMacroPlacement();
+}
+
+void
 report_legalization_stats()
 {
   dpl::Opendp *opendp = ord::OpenRoad::openRoad()->getOpendp();

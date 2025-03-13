@@ -92,6 +92,10 @@ class Opendp
   void legalCellPos(odb::dbInst* db_inst);  // call from rsz
   void initMacrosAndGrid();                 // call from rsz
 
+  // LEO: my stupid methods
+  void unplaceStdCells();
+  void fixMacroPlacement();
+
   // legalize/report
   // max_displacment is in sites. use zero for defaults.
   void detailedPlacement(int max_displacement_x,
