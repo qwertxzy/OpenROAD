@@ -26,7 +26,6 @@
 #include "odb/db.h"
 #include "odb/util.h"
 #include "util/journal.h"
-#include "odb/geom.h"
 #include "utl/Logger.h"
 
 namespace dpl {
@@ -105,6 +104,7 @@ void Opendp::fixMacroPlacement() {
 
   // Calculate displacement forces between all pairs of macros
   for (int i = 0; i < macros.size(); i++) {
+    forces[macros[i]] = Vector2D(0, 0);
     for (int j = i + 1; j < macros.size(); j++) {
       Cell* macro1 = macros[i];
       Cell* macro2 = macros[j];
@@ -120,13 +120,15 @@ void Opendp::fixMacroPlacement() {
         Point macro1_center = macro1_grid_rect.toRect().center();
         Vector2D force_vector1 = Vector2D(overlap_center, macro1_center);
         force_vector1.normalize();
-        forces[macro1] += force_vector1 * overlap_rect.toRect().area();
+        force_vector1 = force_vector1 * overlap_rect.toRect().area();
+        forces[macro1] = forces[macro1] + force_vector1;
 
         // For macro2
         Point macro2_center = macro2_grid_rect.toRect().center();
         Vector2D force_vector2 = Vector2D(overlap_center, macro2_center);
         force_vector2.normalize();
-        forces[macro2] += force_vector2 * overlap_rect.toRect().area();
+        force_vector2 = force_vector2 * overlap_rect.toRect().area();
+        forces[macro2] = forces[macro2] + force_vector2;
       }
     }
   }

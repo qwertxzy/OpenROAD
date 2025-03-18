@@ -78,8 +78,8 @@ class Vector2D
    Vector2D operator+(const Vector2D& rhs) const;
    Vector2D operator-(const Vector2D& rhs) const;
    bool operator==(const Vector2D& rhs) const;
-   Vector2D& operator+=(const Vector2D& rhs);
-   Vector2D& operator-=(const Vector2D& rhs);
+  //  Vector2D& operator+=(const Vector2D& rhs);
+  //  Vector2D& operator-=(const Vector2D& rhs);
    bool operator!=(const Vector2D& rhs) const { return !(*this == rhs); };
    Vector2D operator*(float rhs) const;
 
@@ -590,21 +590,21 @@ inline bool Vector2D::operator==(const Vector2D& rhs) const
   return (x_ == rhs.x_) && (y_ == rhs.y_);
 }
 
-[[maybe_unused]] inline Vector2D& Vector2D::operator+=(const Vector2D& rhs)
-{
-  this->x_ += rhs.x_;
-  this->y_ += rhs.y_;
+// inline Vector2D& Vector2D::operator+=(const Vector2D& rhs)
+// {
+//   this->x_ += rhs.x_;
+//   this->y_ += rhs.y_;
   
-  return *this;
-}
+//   return *this;
+// }
 
-[[maybe_unused]] inline Vector2D& Vector2D::operator-=(const Vector2D& rhs)
-{
-  this->x_ -= rhs.x_;
-  this->y_ -= rhs.y_;
+// inline Vector2D& Vector2D::operator-=(const Vector2D& rhs)
+// {
+//   this->x_ -= rhs.x_;
+//   this->y_ -= rhs.y_;
   
-  return *this;
-}
+//   return *this;
+// }
 
 inline Vector2D Vector2D::operator*(float rhs) const
 {
