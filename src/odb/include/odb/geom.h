@@ -613,6 +613,9 @@ inline Vector2D Vector2D::operator*(float rhs) const
 
 inline double Vector2D::getMagnitude() const
 {
+  if (x_ == 0 && y_ == 0) {
+    return 0;
+  }
   return std::sqrt(x_ * x_ + y_ * y_);
 }
 

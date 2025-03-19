@@ -94,7 +94,7 @@ class Opendp
 
   // LEO: my stupid methods
   void unplaceStdCells();
-  void fixMacroPlacement();
+  void fixMacroPlacement(float force_multiplier = 1.0, int halo_width = 0, int max_iter = 1000);
 
   // legalize/report
   // max_displacment is in sites. use zero for defaults.

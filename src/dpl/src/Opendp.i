@@ -37,10 +37,10 @@ unplace_std_cells()
 }
 
 void
-fix_macro_placement()
+fix_macro_placement(float force_multiplier, int halo_width, int max_iter)
 {
   dpl::Opendp *opendp = ord::OpenRoad::openRoad()->getOpendp();
-  opendp->fixMacroPlacement();
+  opendp->fixMacroPlacement(force_multiplier, halo_width, max_iter);
 }
 
 void
