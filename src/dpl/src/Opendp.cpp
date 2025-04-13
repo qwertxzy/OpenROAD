@@ -61,36 +61,33 @@ Opendp::Opendp(odb::dbDatabase* db, Logger* logger) : logger_(logger), db_(db)
   arch_ = std::make_unique<Architecture>();
 }
 
-// LEO: Method to unplace std cells but lock macros
+// LEO: Method to unplace std cells
 void Opendp::unplaceStdCells() {
   importDb();
   for (Cell& cell : cells_) {
-    // Unplace all std cells and lock all others (macros)
+    // Unplace all std cells
     if (cell.isStdCell()) {
       cell.db_inst_->setPlacementStatus(odb::dbPlacementStatus::UNPLACED);
-    } else {
-      cell.db_inst_->setPlacementStatus(odb::dbPlacementStatus::LOCKED);
     }
   }
 }
 
 // LEO: Method to fix slight overlaps between macros after GPL
 // Plan:
-//  - For every pair of macros, calculate overlap
-//  - Apply a force to both macros that moves them away from the overlap center
-//  - Do this for all macros, sum up force vectors
-//  - Iterate until all overlaps are fixed
-// TODO: snap to manufacturing grid
-// TODO: remove locking from unplace step?!?!?!
-// TODO: shit don't work
-void Opendp::fixMacroPlacement(float force_multiplier, int halo_width, int max_iter) {
+//  - Every macro has a spring force to its original position
+//  - Every macro has a repulsive force for each overlap
+//  - Iterate until overlaps are resolved or max_iter is reached
+// TODO: big halos will solve overlaps but overlap area won't go to 0?
+void Opendp::fixMacroPlacement(float overlap_multiplier, float origin_multiplier, float damping_factor, int halo_width, int max_iter) {
   importDb();
 
   // Get a list of all macros
-  std::vector<Cell*> macros;
+  std::vector<dbInst*> macros;
+  std::map<dbInst*, Point> original_coordinates;
   for (Cell& cell : cells_) {
     if (!cell.isStdCell()) {
-      macros.push_back(&cell);
+      macros.push_back(cell.db_inst_);
+      original_coordinates[cell.db_inst_] = cell.db_inst_->getOrigin();
 
       // While we're at it, set all locked macros to just 'placed'
       if (cell.db_inst_->getPlacementStatus() == odb::dbPlacementStatus::LOCKED) {
@@ -100,77 +97,147 @@ void Opendp::fixMacroPlacement(float force_multiplier, int halo_width, int max_i
   }
   
   // Save force vectors for every macro
-  std::map<Cell*, Vector2D> forces;
+  std::map<dbInst*, Vector2D> forces = std::map<dbInst*, Vector2D>();
 
-  for (int i = 0; i < max_iter; i++) {
-    // Calculate displacement forces between all pairs of macros
+  // Initialize forces with a spring to each macro's original position
+  for (auto& macro : macros) {
+    Point original_position = original_coordinates[macro];
+    Point macro_pos = macro->getOrigin();
+    Vector2D spring_vector = Vector2D(macro_pos, original_position);
+
+    // Add multiplied spring force to forces map
+    forces[macro] = spring_vector * origin_multiplier;
+  }
+
+  // Save total overlap for this iteration
+  int64_t total_overlap;
+
+  for (int iteration = 0; iteration < max_iter; iteration++) {
+    total_overlap = 0;
+    // Loop over all macros i
     for (int i = 0; i < macros.size(); i++) {
-      forces[macros[i]] = Vector2D(0, 0);
+      dbInst* macro_i = macros[i];
+      Rect rect_i;
+      if (halo_width > 0) {
+        macro_i->getBBox()->getBox().bloat(halo_width, rect_i);
+      } else {
+        rect_i = macro_i->getBBox()->getBox();
+      }     
+
+      // Loop over all other macros j
       for (int j = i + 1; j < macros.size(); j++) {
-        Cell* macro1 = macros[i];
-        Cell* macro2 = macros[j];
-        GridRect macro1_grid_rect = grid_->gridCovering(macro1);
-        GridRect macro2_grid_rect = grid_->gridCovering(macro2);
-
-        // Add halo width to grid rects
+        dbInst* macro_j = macros[j];
+        Rect rect_j;
         if (halo_width > 0) {
-          // TODO: make this a method in GridRect
-          macro1_grid_rect.xhi += halo_width;
-          macro1_grid_rect.yhi += halo_width;
-          macro1_grid_rect.xlo -= halo_width;
-          macro1_grid_rect.ylo -= halo_width;
-
-          macro2_grid_rect.xhi += halo_width;
-          macro2_grid_rect.yhi += halo_width;
-          macro2_grid_rect.xlo -= halo_width;
-          macro2_grid_rect.ylo -= halo_width;
+          macro_j->getBBox()->getBox().bloat(halo_width, rect_j);
+        } else {
+          rect_j = macro_j->getBBox()->getBox();
         }
-        GridRect overlap_rect = macro1_grid_rect.intersect(macro2_grid_rect);
-        // Check if overlap is nonzero
-        if (overlap_rect.xlo < overlap_rect.xhi && overlap_rect.ylo < overlap_rect.yhi) {
-          // Calculate force vectors based on overlap rect
-          Point overlap_center = overlap_rect.toRect().center();
-        
-          // For macro1
-          Point macro1_center = macro1_grid_rect.toRect().center();
-          Vector2D force_vector1 = Vector2D(overlap_center, macro1_center);
-          force_vector1.normalize();
-          force_vector1 = force_vector1 * overlap_rect.toRect().area() * force_multiplier;
-          forces[macro1] = forces[macro1] + force_vector1;
 
-          // For macro2
-          Point macro2_center = macro2_grid_rect.toRect().center();
-          Vector2D force_vector2 = Vector2D(overlap_center, macro2_center);
-          force_vector2.normalize();
-          force_vector2 = force_vector2 * overlap_rect.toRect().area() * force_multiplier;
-          forces[macro2] = forces[macro2] + force_vector2;
+        // Check if overlap is nonzero
+        if (rect_i.intersects(rect_j)) {
+          // Direction is vector from center i to center j
+          Vector2D direction = Vector2D(rect_i.center(), rect_j.center());
+          direction.normalize();
+
+          // Calculate overlap distances
+          Rect overlap_rect = rect_i.intersect(rect_j);
+          int overlap_dist = std::min(overlap_rect.dx(), overlap_rect.dy());
+        
+          debugPrint(logger_,
+            DPL,
+            "macro",
+            2,
+            "Overlap between {} and {}: overlap distance = {}",
+            macro_i->getName(),
+            macro_j->getName(),
+            overlap_dist
+          );
+
+          // Calculate force magnitude
+          int force_magnitude = overlap_multiplier * overlap_dist;
+
+          // Calculate additional damping term
+          float force_damping = -damping_factor * sqrt(force_magnitude);
+
+          // Create a vector from these
+          Vector2D force_vector = direction * force_magnitude + Vector2D(force_damping, force_damping);
+
+          debugPrint(logger_,
+            DPL,
+            "macro",
+            2,
+            "Calculated force vector between {} and {}: ({}, {})",
+            macro_i->getName(),
+            macro_j->getName(),
+            force_vector.getX(),
+            force_vector.getY()
+          );
+
+          // Add vector to macro_j and subtract from macro_i
+          forces[macro_j] = forces[macro_j] + force_vector;
+          forces[macro_i] = forces[macro_i] - force_vector;
+
+          // Update total overlap
+          total_overlap += overlap_rect.area();
         }
       }
     }
 
+    logger_->info(DPL, 3, "Iteration {}: total overlap = {}", iteration, total_overlap);
+
     // Apply forces to all macros
-    bool all_zero = true;
+    Rect core = grid_->getCore();
     for (auto& force : forces) {
-      Cell* macro = force.first;
+      dbInst* macro = force.first;
       Vector2D force_vector = force.second;
       if (force_vector.getMagnitude() == 0) {
         continue;
       }
-      all_zero = false;
       
-      // Move macro by force vector
-      int macro_x, macro_y;
-      macro->db_inst_->getLocation(macro_x, macro_y);
-      macro_x += force_vector.getX();
-      macro_y += force_vector.getY();
-      macro->db_inst_->setLocation(macro_x, macro_y);
+      debugPrint(logger_,
+        DPL,
+        "macro",
+        1,
+        "Macro {}: force vector = ({}, {})",
+        macro->getName(),
+        force_vector.getX(),
+        force_vector.getY()
+      );
 
-      logger_->debug(DPL, "Macro Legalizer", "Applying force to {}: ({}, {})", macro->name(), force_vector.getX(), force_vector.getY());
+      // Move macro by force vector
+      Point current_pos = macro->getOrigin();
+      current_pos.addX(force_vector.getX());
+      current_pos.addY(force_vector.getY());
+      
+      // Clip out of bounds coordinates
+      if (current_pos.getX() < core.xMin()) {
+        current_pos.setX(core.xMin());
+      } else if (current_pos.getX() > core.xMax() - macro->getBBox()->getDX()) {
+        current_pos.setX(core.xMax() - macro->getBBox()->getDX());
+      }
+
+      if (current_pos.getY() < core.yMin()) {
+        current_pos.setY(core.yMin());
+      } else if (current_pos.getY() > core.yMax() - macro->getBBox()->getDY()) {
+        current_pos.setY(core.yMax() - macro->getBBox()->getDY());
+      }
+
+      // Set new position
+      macro->setOrigin(current_pos.getX(), current_pos.getY());
     }
 
-    // If all forces were zero, we are done
-    if (all_zero) {
-      logger_->info(DPL, 0, "Resolved all overlaps in {} iterations", i);
+    // If total overlap area was 0, break out of the loop
+    if (total_overlap == 0) {
+      logger_->info(DPL, 4, "Resolved all overlaps in {} iterations", iteration);
+
+      // TODO: Snap all macros to manufacturing grid
+      // for (auto& macro : macros) {
+      //   Snapper snapper(logger_, macro->db_inst_);
+      //   snapper.snapMacro();
+      //   macro->setPlacementStatus(odb::dbPlacementStatus::LOCKED);
+      // }
+
       break;
     }
 
