@@ -94,6 +94,7 @@ class Opendp
 
   // LEO: my stupid methods
   void unplaceStdCells();
+  void snapMacros(vector<dbInst*> macros);
   void fixMacroPlacement(float overlap_multiplier = 0.7, float origin_multiplier = 0.01, float damping_factor = 0.4, int halo_width = 0, int max_iter = 100);
 
   // legalize/report

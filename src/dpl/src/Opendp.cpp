@@ -72,6 +72,27 @@ void Opendp::unplaceStdCells() {
   }
 }
 
+// LEO: Copied from mpl/src/MacroPlacer.cpp
+void Opendp::snapMacros(vector<dbInst*> macros)
+{
+  odb::dbTech* tech = db_->getTech();
+  const int dbu = tech->getDbUnitsPerMicron();
+  const int manufacturing_grid = db_->getTech()->getManufacturingGrid();
+  
+  for (auto& macro : macros) {
+    // Get macro's current location
+    Point location = macro->getOrigin();
+
+    // Snap to routing grid
+    location.setX(round(location.getX() / manufacturing_grid) * manufacturing_grid);
+    location.setY(round(location.getY() / manufacturing_grid) * manufacturing_grid);
+
+    // Update macro position
+    macro->setOrigin(location.getX(), location.getY());
+    macro->setPlacementStatus(odb::dbPlacementStatus::LOCKED);
+  }
+}
+
 // LEO: Method to fix slight overlaps between macros after GPL
 // Plan:
 //  - Every macro has a spring force to its original position
@@ -231,12 +252,8 @@ void Opendp::fixMacroPlacement(float overlap_multiplier, float origin_multiplier
     if (total_overlap == 0) {
       logger_->info(DPL, 4, "Resolved all overlaps in {} iterations", iteration);
 
-      // TODO: Snap all macros to manufacturing grid
-      // for (auto& macro : macros) {
-      //   Snapper snapper(logger_, macro->db_inst_);
-      //   snapper.snapMacro();
-      //   macro->setPlacementStatus(odb::dbPlacementStatus::LOCKED);
-      // }
+      // Snap all macros to manufacturing grid
+      snapMacros(macros);
 
       break;
     }
