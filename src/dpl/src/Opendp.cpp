@@ -72,11 +72,9 @@ void Opendp::unplaceStdCells() {
   }
 }
 
-// LEO: Copied from mpl/src/MacroPlacer.cpp
+// LEO: Copied from mpl2/src/hier_rtlmp.cpp
 void Opendp::snapMacros(vector<dbInst*> macros)
 {
-  odb::dbTech* tech = db_->getTech();
-  const int dbu = tech->getDbUnitsPerMicron();
   const int manufacturing_grid = db_->getTech()->getManufacturingGrid();
   
   for (auto& macro : macros) {
@@ -260,6 +258,50 @@ void Opendp::fixMacroPlacement(float overlap_multiplier, float origin_multiplier
 
     // Clear forces for next iteration
     forces.clear();
+  }
+
+  // Before we return, maybe macros are already well placed, just with overlap from the halo bloat..
+  //  so check if all macros overlap with 90% of the halo width
+  // Loop over all macros i
+  int adjusted_halo_width = round(halo_width * 0.95);
+  
+  bool overlap_free = true;
+  // Loop over all macros i
+  for (int i = 0; i < macros.size(); i++) {
+    if (!overlap_free) {
+      break;
+    }
+    
+    dbInst* macro_i = macros[i];
+    Rect rect_i;
+    if (adjusted_halo_width > 0) {
+      macro_i->getBBox()->getBox().bloat(adjusted_halo_width, rect_i);
+    } else {
+      rect_i = macro_i->getBBox()->getBox();
+    }     
+
+    // Loop over all other macros j
+    for (int j = i + 1; j < macros.size(); j++) {
+      dbInst* macro_j = macros[j];
+      Rect rect_j;
+      if (adjusted_halo_width > 0) {
+        macro_j->getBBox()->getBox().bloat(adjusted_halo_width, rect_j);
+      } else {
+        rect_j = macro_j->getBBox()->getBox();
+      }
+
+      // If any overlap, set flag
+      if (rect_i.intersects(rect_j)) {
+        overlap_free = false;
+        break;
+      }
+    }
+  }
+  
+  // If all maros are overlap free, snap them
+  if (overlap_free) {
+    logger_->info(DPL, 5, "95% of Halos were valid, snapped macros anyways");
+    snapMacros(macros);
   }
 }
 
