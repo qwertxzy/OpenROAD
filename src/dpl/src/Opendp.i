@@ -30,23 +30,6 @@ detailed_placement_cmd(int max_displacment_x,
 }
 
 void
-unplace_std_cells()
-{
-  dpl::Opendp *opendp = ord::OpenRoad::openRoad()->getOpendp();
-  opendp->unplaceStdCells();
-}
-
-void
-fix_macro_placement(float overlap_multiplier,
-                    float origin_multiplier,
-                    float damping_factor,
-                    int halo_width,
-                    int max_iter) {
-  dpl::Opendp *opendp = ord::OpenRoad::openRoad()->getOpendp();
-  opendp->fixMacroPlacement(overlap_multiplier, origin_multiplier, damping_factor, halo_width, max_iter);
-}
-
-void
 report_legalization_stats()
 {
   dpl::Opendp *opendp = ord::OpenRoad::openRoad()->getOpendp();

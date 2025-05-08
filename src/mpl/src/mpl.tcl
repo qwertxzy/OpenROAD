@@ -330,3 +330,51 @@ proc mpl_debug { args } {
     $target_cluster_id
 }
 }
+
+sta::define_cmd_args "fix_macros" { [-overlap_multiplier overlap_multiplier] \
+                                    [-origin_multiplier origin_multiplier] \
+                                    [-damping_factor damping_factor]
+                                    [-halo_width halo_width]
+                                    [-max_iterations max_iterations] }
+
+proc fix_macros { args } {
+  if { [ord::get_db_block] == "NULL" } {
+    utl::error MPL2 22 "No design block found."
+  }
+
+  sta::parse_key_args "fix_macros" args \
+    keys {-overlap_multiplier -origin_multiplier -damping_factor -halo_width -max_iterations} flags {}
+  
+  set overlap_multiplier 0.7
+  if { [info exists keys(-overlap_multiplier)] } {
+    set overlap_multiplier $keys(-overlap_multiplier)
+    sta::check_positive_float "-overlap_multiplier" $overlap_multiplier
+  }
+
+  set origin_multiplier 0.01
+  if { [info exists keys(-origin_multiplier)] } {
+    set origin_multiplier $keys(-origin_multiplier)
+    sta::check_positive_float "-origin_multiplier" $origin_multiplier
+  }
+
+  set damping_factor 0.4
+  if { [info exists keys(-damping_factor)] } {
+    set damping_factor $keys(-damping_factor)
+    sta::check_positive_float "-damping_factor" $damping_factor
+  }
+
+  set halo_width 0
+  if { [info exists keys(-halo_width)] } {
+    set halo_width $keys(-halo_width)
+    sta::check_positive_integer "-halo_width" $halo_width
+  }
+
+  set max_iterations 100
+  if { [info exists keys(-max_iterations)] } {
+    set max_iterations $keys(-max_iterations)
+    sta::check_positive_integer "-max_iterations" $max_iterations
+  }
+
+  sta::check_argc_eq0 "fix_macros" $args
+  mpl2::fix_macro_placement $overlap_multiplier $origin_multiplier $damping_factor $halo_width $max_iterations
+}

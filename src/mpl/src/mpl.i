@@ -137,6 +137,26 @@ set_macro_placement_file(std::string file_name)
   getMacroPlacer()->setMacroPlacementFile(file_name);
 }
 
+void
+unplace_std_cells()
+{
+  auto macro_placer = getMacroPlacer2();
+  mpl2::Legalizer legalizer = macro_placer->getLegalizer();
+  legalizer.unplaceStdCells();
+}
+
+void
+fix_macro_placement(float overlap_multiplier,
+                    float origin_multiplier,
+                    float damping_factor,
+                    int halo_width,
+                    int max_iter) {
+  auto macro_placer = getMacroPlacer2();
+  mpl2::Legalizer legalizer = macro_placer->getLegalizer();
+  legalizer.fixMacroPlacement(overlap_multiplier, origin_multiplier, damping_factor, halo_width, max_iter);
+}
+
+
 } // namespace
 
 %} // inline
