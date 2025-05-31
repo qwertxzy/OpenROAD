@@ -100,6 +100,7 @@ void Legalizer::unplaceStdCells() {
 // Snap all macros to the manufacturing grid & align pins where possible
 void Legalizer::snapMacros(vector<dbInst*> macros)
 {
+  debugPrint(logger_, MPL, "macro", 1, "Snapping {} macros to manufacturing grid", macros.size());
   Snapper snapper(logger_);
   
   for (auto& macro : macros) {
@@ -146,7 +147,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
   }
 
   // Save total overlap for this iteration
-  int64_t total_overlap;
+  int64_t total_overlap = 0;
 
   for (int iteration = 0; iteration < max_iter; iteration++) {
     total_overlap = 0;
@@ -223,7 +224,6 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
     logger_->info(MPL, 37, "Iteration {}: total overlap = {}", iteration, total_overlap);
 
     // Apply forces to all macros
-    // TODO: double check, this seems to be broken? But only sometimes?? Or does it just not work when the macros are already outside the core
     odb::Rect core = db_->getChip()->getBlock()->getCoreArea();
     for (auto& force : forces) {
       dbInst* macro = force.first;
@@ -280,46 +280,39 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
 
   // Before we return, maybe macros are already well placed, just with overlap from the halo bloat..
   //  so check if all macros overlap with 90% of the halo width
-  // Loop over all macros i
-  int adjusted_halo_width = round(halo_width * 0.95);
-  
-  bool overlap_free = true;
-  // Loop over all macros i
-  for (int i = 0; i < macros_.size(); i++) {
-    if (!overlap_free) {
-      break;
-    }
-    
-    dbInst* macro_i = macros_[i];
-    odb::Rect rect_i;
-    if (adjusted_halo_width > 0) {
-      macro_i->getBBox()->getBox().bloat(adjusted_halo_width, rect_i);
-    } else {
-      rect_i = macro_i->getBBox()->getBox();
-    }     
+  if (total_overlap > 0 && halo_width > 0) {
+    int adjusted_halo_width = round(halo_width * 0.95);
+    bool mostly_overlap_free = true;
 
-    // Loop over all other macros j
-    for (int j = i + 1; j < macros_.size(); j++) {
-      dbInst* macro_j = macros_[j];
-      odb::Rect rect_j;
-      if (adjusted_halo_width > 0) {
-        macro_j->getBBox()->getBox().bloat(adjusted_halo_width, rect_j);
-      } else {
-        rect_j = macro_j->getBBox()->getBox();
-      }
-
-      // If any overlap, set flag
-      if (rect_i.intersects(rect_j)) {
-        overlap_free = false;
+    // Loop over all macros i
+    for (int i = 0; i < macros_.size(); i++) {
+      if (!mostly_overlap_free) {
         break;
       }
+      
+      dbInst* macro_i = macros_[i];
+      odb::Rect rect_i;
+      macro_i->getBBox()->getBox().bloat(adjusted_halo_width, rect_i);
+   
+      // Loop over all other macros j
+      for (int j = i + 1; j < macros_.size(); j++) {
+        dbInst* macro_j = macros_[j];
+        odb::Rect rect_j;
+        macro_j->getBBox()->getBox().bloat(adjusted_halo_width, rect_j);
+
+        // If any overlap, set flag
+        if (rect_i.intersects(rect_j)) {
+          mostly_overlap_free = false;
+          break;
+        }
+      }
     }
-  }
-  
-  // If all maros are overlap free, snap them
-  if (overlap_free) {
-    logger_->info(MPL, 47, "95% of Halos were valid, snapped macros anyways");
-    snapMacros(macros_);
+    
+    // If all maros are mostly overlap free, snap them anyway
+    if (mostly_overlap_free) {
+      logger_->info(MPL, 47, "95% of Halos were valid, snapped macros anyways");
+      snapMacros(macros_);
+    }
   }
 }
 
