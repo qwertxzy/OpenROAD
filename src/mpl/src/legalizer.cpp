@@ -107,9 +107,65 @@ void Legalizer::snapMacros(vector<dbInst*> macros)
     snapper.setMacro(macro);
     snapper.snapMacro();
     
+    // Snapper can have moved the macro out of the core again
+    // .. so we clip it one more time
+    clipInstBoundingBox(macro);
+
     // Lock position
     macro->setPlacementStatus(odb::dbPlacementStatus::LOCKED);
   }
+}
+
+// Clip the inst to the inside of the core area by its bounding box
+void Legalizer::clipInstBoundingBox(dbInst* inst) {
+  // Get core dimensions for clipping  
+  odb::Rect core = db_->getChip()->getBlock()->getCoreArea();
+
+  // Get current position
+  Point current_pos = inst->getOrigin();
+  odb::Rect inst_bbox = inst->getBBox()->getBox();
+
+  debugPrint(logger_,
+    MPL,
+    "macro",
+    2,
+    "BBox of macro {} before clipping: ({}, {}), ({}, {})",
+    inst->getName(),
+    inst_bbox.xMin(),
+    inst_bbox.yMin(),
+    inst_bbox.xMax(),
+    inst_bbox.yMax()
+  );
+
+  // Actual clipping
+  if (inst_bbox.xMin() < core.xMin()) {
+    current_pos.setX(core.xMin());
+  } else if (inst_bbox.xMax() > core.xMax()) {
+    current_pos.setX(core.xMax() - inst_bbox.dx());
+  }
+
+  if (inst_bbox.yMin() < core.yMin()) {
+    current_pos.setY(core.yMin());
+  } else if (inst_bbox.yMax() > core.yMax()) {
+    current_pos.setY(core.yMax() - inst_bbox.dy());
+  }
+
+  // Set new position
+  inst->setOrigin(current_pos.getX(), current_pos.getY());
+
+  // update bbox for the debug print
+  inst_bbox = inst->getBBox()->getBox();
+  debugPrint(logger_,
+    MPL,
+    "macro",
+    2,
+    "BBox of macro {} after clipping: ({}, {}), ({}, {})",
+    inst->getName(),
+    inst_bbox.xMin(),
+    inst_bbox.yMin(),
+    inst_bbox.xMax(),
+    inst_bbox.yMax()
+  );
 }
 
 // LEO: Method to fix slight overlaps between macros after GPL
@@ -118,19 +174,21 @@ void Legalizer::snapMacros(vector<dbInst*> macros)
 //  - Every macro has a repulsive force for each overlap
 //  - Iterate until overlaps are resolved or max_iter is reached
 void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multiplier, float damping_factor, int halo_width_raw, int max_iter) {
-
   // Convert raw halo width to dbu
   int halo_width = halo_width_raw * db_->getTech()->getDbUnitsPerMicron();
 
   // Get a list of all macro's original coordinates
   std::map<dbInst*, Point> original_coordinates;
-  for (auto macro : macros_) {
-    original_coordinates[macro] = macro->getOrigin();
-
+  for (dbInst* macro : macros_) {
     // While we're at it, set all locked macros to just 'placed'
     if (macro->getPlacementStatus() == odb::dbPlacementStatus::LOCKED) {
       macro->setPlacementStatus(odb::dbPlacementStatus::PLACED);
     }
+    // Clip the macro position initially
+    clipInstBoundingBox(macro);
+
+    // ..and save the new position as the original coordinate
+    original_coordinates[macro] = macro->getOrigin();
   }
   
   // Save force vectors for every macro
@@ -224,7 +282,6 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
     logger_->info(MPL, 37, "Iteration {}: total overlap = {}", iteration, total_overlap);
 
     // Apply forces to all macros
-    odb::Rect core = db_->getChip()->getBlock()->getCoreArea();
     for (auto& force : forces) {
       dbInst* macro = force.first;
       Vector2D force_vector = force.second;
@@ -242,26 +299,15 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
         force_vector.getY()
       );
 
-      // Move macro by force vector
       Point current_pos = macro->getOrigin();
+      
+      // Move macro by force vector
       current_pos.addX(force_vector.getX());
       current_pos.addY(force_vector.getY());
       
-      // Clip out of bounds coordinates
-      if (current_pos.getX() < core.xMin()) {
-        current_pos.setX(core.xMin());
-      } else if (current_pos.getX() > core.xMax() - macro->getBBox()->getDX()) {
-        current_pos.setX(core.xMax() - macro->getBBox()->getDX());
-      }
-
-      if (current_pos.getY() < core.yMin()) {
-        current_pos.setY(core.yMin());
-      } else if (current_pos.getY() > core.yMax() - macro->getBBox()->getDY()) {
-        current_pos.setY(core.yMax() - macro->getBBox()->getDY());
-      }
-
-      // Set new position
+      // Set new position and clip it
       macro->setOrigin(current_pos.getX(), current_pos.getY());
+      clipInstBoundingBox(macro);
     }
 
     // If total overlap area was 0, break out of the loop

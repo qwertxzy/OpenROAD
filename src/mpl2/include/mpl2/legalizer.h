@@ -26,6 +26,7 @@ class Legalizer {
 
   private:
     bool isStdCell(dbInst* inst) const;
+    void clipInstBoundingBox(dbInst* inst);
 
     Logger* logger_ = nullptr;
     dbDatabase* db_ = nullptr;
