@@ -98,7 +98,7 @@ void Legalizer::unplaceStdCells() {
 }
 
 // Snap all macros to the manufacturing grid & align pins where possible
-void Legalizer::snapMacros(vector<dbInst*> macros)
+void Legalizer::snapMacros(vector<dbInst*> macros, int halo_width)
 {
   debugPrint(logger_, MPL, "macro", 1, "Snapping {} macros to manufacturing grid", macros.size());
   Snapper snapper(logger_);
@@ -109,7 +109,7 @@ void Legalizer::snapMacros(vector<dbInst*> macros)
     
     // Snapper can have moved the macro out of the core again
     // .. so we clip it one more time
-    clipInstBoundingBox(macro);
+    clipInstBoundingBox(macro, halo_width);
 
     // Lock position
     macro->setPlacementStatus(odb::dbPlacementStatus::LOCKED);
@@ -117,13 +117,17 @@ void Legalizer::snapMacros(vector<dbInst*> macros)
 }
 
 // Clip the inst to the inside of the core area by its bounding box
-void Legalizer::clipInstBoundingBox(dbInst* inst) {
+void Legalizer::clipInstBoundingBox(dbInst* inst, int halo) {
   // Get core dimensions for clipping  
   odb::Rect core = db_->getChip()->getBlock()->getCoreArea();
 
   // Get current position
   Point current_pos = inst->getOrigin();
-  odb::Rect inst_bbox = inst->getBBox()->getBox();
+  odb::Rect raw_inst_bbox = inst->getBBox()->getBox();
+
+  // Bloat int bbox so we can leave the halo towards the core edge too
+  odb::Rect inst_bbox;
+  raw_inst_bbox.bloat(halo, inst_bbox);
 
   debugPrint(logger_,
     MPL,
@@ -185,7 +189,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
       macro->setPlacementStatus(odb::dbPlacementStatus::PLACED);
     }
     // Clip the macro position initially
-    clipInstBoundingBox(macro);
+    clipInstBoundingBox(macro, halo_width);
 
     // ..and save the new position as the original coordinate
     original_coordinates[macro] = macro->getOrigin();
@@ -307,7 +311,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
       
       // Set new position and clip it
       macro->setOrigin(current_pos.getX(), current_pos.getY());
-      clipInstBoundingBox(macro);
+      clipInstBoundingBox(macro, halo_width);
     }
 
     // If total overlap area was 0, break out of the loop
@@ -315,7 +319,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
       logger_->info(MPL, 46, "Resolved all overlaps in {} iterations", iteration);
 
       // Snap all macros to manufacturing grid
-      snapMacros(macros_);
+      snapMacros(macros_, halo_width);
 
       break;
     }
@@ -357,7 +361,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
     // If all maros are mostly overlap free, snap them anyway
     if (mostly_overlap_free) {
       logger_->info(MPL, 47, "95% of Halos were valid, snapped macros anyways");
-      snapMacros(macros_);
+      snapMacros(macros_, halo_width);
     }
   }
 }

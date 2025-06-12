@@ -21,12 +21,12 @@ class Legalizer {
     void init(utl::Logger* logger, odb::dbDatabase* db);
 
     void unplaceStdCells();
-    void snapMacros(vector<dbInst*> macros);
+    void snapMacros(vector<dbInst*> macros, int halo_width);
     void fixMacroPlacement(float overlap_multiplier = 0.7, float origin_multiplier = 0.01, float damping_factor = 0.4, int halo_width = 0, int max_iter = 100);
 
   private:
     bool isStdCell(dbInst* inst) const;
-    void clipInstBoundingBox(dbInst* inst);
+    void clipInstBoundingBox(dbInst* inst, int halo = 0);
 
     Logger* logger_ = nullptr;
     dbDatabase* db_ = nullptr;
