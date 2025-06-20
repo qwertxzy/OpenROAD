@@ -110,9 +110,6 @@ void Legalizer::snapMacros(vector<dbInst*> macros, int halo_width)
     // Snapper can have moved the macro out of the core again
     // .. so we clip it one more time
     clipInstBoundingBox(macro, halo_width);
-
-    // Lock position
-    macro->setPlacementStatus(odb::dbPlacementStatus::LOCKED);
   }
 }
 
@@ -362,7 +359,16 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
     if (mostly_overlap_free) {
       logger_->info(MPL, 47, "95% of Halos were valid, snapped macros anyways");
       snapMacros(macros_, halo_width);
+    } else{
+      logger_->error(MPL, 48, "Macro legaization could not resolve overlaps in the given number of iterations.");
+      // Do not lock macros so we can run legalization again with different parameters
+      return;
     }
+  }
+
+  // Lock positions
+  for (dbInst* macro : macros_) {
+    macro->setPlacementStatus(odb::dbPlacementStatus::LOCKED);
   }
 }
 
