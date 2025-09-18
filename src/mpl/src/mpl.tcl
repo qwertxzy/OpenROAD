@@ -345,19 +345,19 @@ proc fix_macros { args } {
   sta::parse_key_args "fix_macros" args \
     keys {-overlap_multiplier -origin_multiplier -damping_factor -halo_width -max_iterations} flags {}
   
-  set overlap_multiplier 0.7
+  set overlap_multiplier 0.3
   if { [info exists keys(-overlap_multiplier)] } {
     set overlap_multiplier $keys(-overlap_multiplier)
     sta::check_positive_float "-overlap_multiplier" $overlap_multiplier
   }
 
-  set origin_multiplier 0.01
+  set origin_multiplier 0.05
   if { [info exists keys(-origin_multiplier)] } {
     set origin_multiplier $keys(-origin_multiplier)
     sta::check_positive_float "-origin_multiplier" $origin_multiplier
   }
 
-  set damping_factor 0.4
+  set damping_factor 0.2
   if { [info exists keys(-damping_factor)] } {
     set damping_factor $keys(-damping_factor)
     sta::check_positive_float "-damping_factor" $damping_factor
