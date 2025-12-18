@@ -10,6 +10,7 @@
 
 #include "odb/db.h"
 #include "utl/Logger.h"
+#include "legalizer.h"
 
 namespace odb {
 class dbDatabase;
@@ -88,6 +89,8 @@ class MacroPlacer
   void setDebugSkipSteps(bool skip_steps);
   void setDebugOnlyFinalResult(bool only_final_result);
   void setDebugTargetClusterId(int target_cluster_id);
+
+  Legalizer getLegalizer();
 
  private:
   std::unique_ptr<HierRTLMP> hier_rtlmp_;

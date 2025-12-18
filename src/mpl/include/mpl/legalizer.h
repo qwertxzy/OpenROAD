@@ -4,7 +4,7 @@
 
 #include "odb/db.h"
 
-namespace mpl2 {
+namespace mpl {
 
 using std::vector;
 
@@ -35,4 +35,4 @@ class Legalizer {
     vector<dbInst*> std_cells_;
 };
 
-} // namespace mpl2
+} // namespace mpl

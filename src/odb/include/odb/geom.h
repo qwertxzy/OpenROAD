@@ -590,22 +590,6 @@ inline bool Vector2D::operator==(const Vector2D& rhs) const
   return (x_ == rhs.x_) && (y_ == rhs.y_);
 }
 
-// inline Vector2D& Vector2D::operator+=(const Vector2D& rhs)
-// {
-//   this->x_ += rhs.x_;
-//   this->y_ += rhs.y_;
-  
-//   return *this;
-// }
-
-// inline Vector2D& Vector2D::operator-=(const Vector2D& rhs)
-// {
-//   this->x_ -= rhs.x_;
-//   this->y_ -= rhs.y_;
-  
-//   return *this;
-// }
-
 inline Vector2D Vector2D::operator*(float rhs) const
 {
   return Vector2D(x_ * rhs, y_ * rhs);

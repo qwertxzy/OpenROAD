@@ -1,16 +1,16 @@
-#include "mpl2/legalizer.h"
+#include "mpl/legalizer.h"
 
 #include "hier_rtlmp.h"
 
-namespace mpl2 {
+namespace mpl {
 
-// Not using this because mpl2 defines its own rect..
+// Not using this because mpl defines its own rect..
 // using odb::Rect;
 using odb::Vector2D;
 using odb::Point;
 using odb::dbMasterType;
 
-using mpl2::Snapper;
+using mpl::Snapper;
 
 using utl::MPL;
 
@@ -119,7 +119,7 @@ void Legalizer::clipInstBoundingBox(dbInst* inst, int halo) {
   odb::Rect core = db_->getChip()->getBlock()->getCoreArea();
 
   // Get current position
-  Point current_pos = inst->getOrigin();
+  odb::Point current_pos = inst->getOrigin();
   odb::Rect raw_inst_bbox = inst->getBBox()->getBox();
 
   // Bloat int bbox so we can leave the halo towards the core edge too
@@ -179,7 +179,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
   int halo_width = halo_width_raw * db_->getTech()->getDbUnitsPerMicron();
 
   // Get a list of all macro's original coordinates
-  std::map<dbInst*, Point> original_coordinates;
+  std::map<dbInst*, odb::Point> original_coordinates;
   for (dbInst* macro : macros_) {
     // While we're at it, set all locked macros to just 'placed'
     if (macro->getPlacementStatus() == odb::dbPlacementStatus::LOCKED) {
@@ -197,8 +197,8 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
 
   // Initialize forces with a spring to each macro's original position
   for (auto& macro : macros_) {
-    Point original_position = original_coordinates[macro];
-    Point macro_pos = macro->getOrigin();
+    odb::Point original_position = original_coordinates[macro];
+    odb::Point macro_pos = macro->getOrigin();
     Vector2D spring_vector = Vector2D(macro_pos, original_position);
 
     // Add multiplied spring force to forces map
@@ -280,7 +280,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
       }
     }
 
-    logger_->info(MPL, 37, "Iteration {}: total overlap = {}", iteration, total_overlap);
+    logger_->info(MPL, 38, "Iteration {}: total overlap = {}", iteration, total_overlap);
 
     // Apply forces to all macros
     for (auto& force : forces) {
@@ -300,7 +300,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
         force_vector.getY()
       );
 
-      Point current_pos = macro->getOrigin();
+      odb::Point current_pos = macro->getOrigin();
       
       // Move macro by force vector
       current_pos.addX(force_vector.getX());
@@ -313,7 +313,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
 
     // If total overlap area was 0, break out of the loop
     if (total_overlap == 0) {
-      logger_->info(MPL, 46, "Resolved all overlaps in {} iterations", iteration);
+      logger_->info(MPL, 49, "Resolved all overlaps in {} iterations", iteration);
 
       // Snap all macros to manufacturing grid
       snapMacros(macros_, halo_width);
@@ -357,7 +357,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
     
     // If all maros are mostly overlap free, snap them anyway
     if (mostly_overlap_free) {
-      logger_->info(MPL, 47, "95% of Halos were valid, snapped macros anyways");
+      logger_->info(MPL, 54, "95% of Halos were valid, snapped macros anyways");
       snapMacros(macros_, halo_width);
     } else{
       logger_->error(MPL, 48, "Macro legaization could not resolve overlaps in the given number of iterations.");
@@ -372,4 +372,4 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
   }
 }
 
-}  // namespace mpl2
+}  // namespace mpl

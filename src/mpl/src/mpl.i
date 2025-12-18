@@ -140,8 +140,8 @@ set_macro_placement_file(std::string file_name)
 void
 unplace_std_cells()
 {
-  auto macro_placer = getMacroPlacer2();
-  mpl2::Legalizer legalizer = macro_placer->getLegalizer();
+  auto macro_placer = getMacroPlacer();
+  mpl::Legalizer legalizer = macro_placer->getLegalizer();
   legalizer.unplaceStdCells();
 }
 
@@ -151,8 +151,8 @@ fix_macro_placement(float overlap_multiplier,
                     float damping_factor,
                     int halo_width,
                     int max_iter) {
-  auto macro_placer = getMacroPlacer2();
-  mpl2::Legalizer legalizer = macro_placer->getLegalizer();
+  auto macro_placer = getMacroPlacer();
+  mpl::Legalizer legalizer = macro_placer->getLegalizer();
   legalizer.fixMacroPlacement(overlap_multiplier, origin_multiplier, damping_factor, halo_width, max_iter);
 }
 

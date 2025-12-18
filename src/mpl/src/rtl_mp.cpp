@@ -261,14 +261,7 @@ void MacroPlacer::setDebugTargetClusterId(const int target_cluster_id)
   hier_rtlmp_->setDebugTargetClusterId(target_cluster_id);
 }
 
-Legalizer MacroPlacer2::getLegalizer()
-{
-  Legalizer l = Legalizer();
-  l.init(logger_, db_);
-  return l;
-}
-
-Legalizer MacroPlacer2::getLegalizer()
+Legalizer MacroPlacer::getLegalizer()
 {
   Legalizer l = Legalizer();
   l.init(logger_, db_);

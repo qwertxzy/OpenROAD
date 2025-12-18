@@ -376,5 +376,5 @@ proc fix_macros { args } {
   }
 
   sta::check_argc_eq0 "fix_macros" $args
-  mpl2::fix_macro_placement $overlap_multiplier $origin_multiplier $damping_factor $halo_width $max_iterations
+  mpl::fix_macro_placement $overlap_multiplier $origin_multiplier $damping_factor $halo_width $max_iterations
 }

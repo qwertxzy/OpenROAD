@@ -16,6 +16,7 @@ add_library(mpl_lib
   src/SACoreSoftMacro.cpp
   src/clusterEngine.cpp
   src/shapes.cpp
+  src/legalizer.cpp
 )
 
 target_include_directories(mpl_lib

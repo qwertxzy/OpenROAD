@@ -92,11 +92,6 @@ class Opendp
   void legalCellPos(odb::dbInst* db_inst);  // call from rsz
   void initMacrosAndGrid();                 // call from rsz
 
-  // LEO: my stupid methods
-  void unplaceStdCells();
-  void snapMacros(vector<dbInst*> macros);
-  void fixMacroPlacement(float overlap_multiplier = 0.7, float origin_multiplier = 0.01, float damping_factor = 0.4, int halo_width = 0, int max_iter = 100);
-
   // legalize/report
   // max_displacment is in sites. use zero for defaults.
   void detailedPlacement(int max_displacement_x,
