@@ -373,13 +373,13 @@ int Tapcell::removeCells(const std::string& prefix)
   odb::dbBlock* block = db_->getChip()->getBlock();
   int removed = 0;
 
-  if (prefix.length() == 0) {
+  if (prefix.empty()) {
     // If no prefix is given, return 0 instead of having all cells removed
     return 0;
   }
 
   for (odb::dbInst* inst : block->getInsts()) {
-    if (inst->getName().find(prefix) == 0) {
+    if (inst->getName().starts_with(prefix)) {
       odb::dbInst::destroy(inst);
       removed++;
     }
@@ -409,7 +409,9 @@ bool Tapcell::checkSymmetry(odb::dbMaster* master, const odb::dbOrientType& ori)
 
 std::vector<Tapcell::Polygon90> Tapcell::getBoundaryAreas() const
 {
-  using namespace boost::polygon::operators;
+  using boost::polygon::operators::operator+=;
+  using boost::polygon::operators::operator-=;
+  using boost::polygon::operators::operator&;
   using Polygon90Set = boost::polygon::polygon_90_set_data<int>;
 
   auto rect_to_poly = [](const odb::Rect& rect) -> Polygon90 {
@@ -1256,8 +1258,43 @@ int Tapcell::placeEndcapEdgeVertical(const Tapcell::Edge& edge,
   for (auto* row : rows) {
     auto check_row = corners.find(row);
     if (check_row != corners.end()) {
-      // corner is already placed in this row
-      continue;
+      bool skip = false;
+      for (odb::dbInst* inst : check_row->second) {
+        switch (edge.type) {
+          case EdgeType::Right: {
+            if (inst->getBBox()->xMax() == row->getBBox().xMax()) {
+              // this edge is already placed
+              skip = true;
+            }
+            break;
+          }
+          case EdgeType::Left: {
+            if (inst->getBBox()->xMin() == row->getBBox().xMin()) {
+              // this edge is already placed
+              skip = true;
+            }
+            break;
+          }
+          case EdgeType::Top:
+          case EdgeType::Bottom:
+          case EdgeType::Unknown:
+            break;
+        }
+        if (skip) {
+          break;
+        }
+      }
+
+      if (skip) {
+        debugPrint(logger_,
+                   utl::TAP,
+                   "Endcap",
+                   2,
+                   "Skipping {} due to corners in {}",
+                   row->getName(),
+                   toString(edge.type));
+        continue;
+      }
     }
 
     const int width = edge_master->getWidth();

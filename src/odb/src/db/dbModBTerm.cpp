@@ -4,6 +4,9 @@
 // Generator Code Begin Cpp
 #include "dbModBTerm.h"
 
+#include <cstdint>
+#include <cstdlib>
+
 #include "dbBlock.h"
 #include "dbBusPort.h"
 #include "dbDatabase.h"
@@ -16,7 +19,6 @@
 #include "dbTable.hpp"
 #include "odb/db.h"
 // User Code Begin Includes
-#include <cstdlib>
 #include <string>
 
 #include "dbCommon.h"
@@ -75,46 +77,36 @@ _dbModBTerm::_dbModBTerm(_dbDatabase* db)
 
 dbIStream& operator>>(dbIStream& stream, _dbModBTerm& obj)
 {
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.name_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.flags_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.parent_moditerm_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.parent_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.modnet_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.next_net_modbterm_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.prev_net_modbterm_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_odb_busport)) {
+  if (obj.getDatabase()->isSchema(kSchemaOdbBusport)) {
     stream >> obj.busPort_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.next_entry_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_hier_port_removal)) {
+  if (obj.getDatabase()->isSchema(kSchemaHierPortRemoval)) {
     stream >> obj.prev_entry_;
   }
-  // User Code Begin >>
-  if (obj.getDatabase()->isSchema(db_schema_db_remove_hash)) {
-    dbDatabase* db = (dbDatabase*) (obj.getDatabase());
-    _dbBlock* block = (_dbBlock*) (db->getChip()->getBlock());
-    _dbModule* module = block->module_tbl_->getPtr(obj.parent_);
-    if (obj.name_) {
-      module->modbterm_hash_[obj.name_] = obj.getId();
-    }
-  }
-  // User Code End >>
   return stream;
 }
 
@@ -139,7 +131,7 @@ void _dbModBTerm::collectMemInfo(MemInfo& info)
   info.size += sizeof(*this);
 
   // User Code Begin collectMemInfo
-  info.children_["name"].add(name_);
+  info.children["name"].add(name_);
   // User Code End collectMemInfo
 }
 
@@ -226,15 +218,15 @@ dbModITerm* dbModBTerm::getParentModITerm() const
 
 struct dbModBTermFlags_str
 {
-  dbIoType::Value _iotype : 4;
-  dbSigType::Value _sigtype : 4;
-  uint _spare_bits : 24;
+  dbIoType::Value iotype : 4;
+  dbSigType::Value sigtype : 4;
+  uint32_t spare_bits : 24;
 };
 
 union dbModBTermFlags
 {
   struct dbModBTermFlags_str flags;
-  uint uint_val;
+  uint32_t uint_val;
 };
 
 void dbModBTerm::setSigType(const dbSigType& type)
@@ -242,7 +234,7 @@ void dbModBTerm::setSigType(const dbSigType& type)
   _dbModBTerm* _dbmodbterm = (_dbModBTerm*) this;
   dbModBTermFlags cur_flags;
   cur_flags.uint_val = _dbmodbterm->flags_;
-  cur_flags.flags._sigtype = type.getValue();
+  cur_flags.flags.sigtype = type.getValue();
   _dbmodbterm->flags_ = cur_flags.uint_val;
 }
 
@@ -251,7 +243,7 @@ dbSigType dbModBTerm::getSigType() const
   _dbModBTerm* _dbmodbterm = (_dbModBTerm*) this;
   dbModBTermFlags cur_flags;
   cur_flags.uint_val = _dbmodbterm->flags_;
-  return dbSigType(cur_flags.flags._sigtype);
+  return dbSigType(cur_flags.flags.sigtype);
 }
 
 void dbModBTerm::setIoType(const dbIoType& type)
@@ -259,7 +251,7 @@ void dbModBTerm::setIoType(const dbIoType& type)
   _dbModBTerm* _dbmodbterm = (_dbModBTerm*) this;
   dbModBTermFlags cur_flags;
   cur_flags.uint_val = _dbmodbterm->flags_;
-  cur_flags.flags._iotype = type.getValue();
+  cur_flags.flags.iotype = type.getValue();
   _dbmodbterm->flags_ = cur_flags.uint_val;
 }
 
@@ -268,7 +260,7 @@ dbIoType dbModBTerm::getIoType() const
   _dbModBTerm* _dbmodbterm = (_dbModBTerm*) this;
   dbModBTermFlags cur_flags;
   cur_flags.uint_val = _dbmodbterm->flags_;
-  return dbIoType(cur_flags.flags._iotype);
+  return dbIoType(cur_flags.flags.iotype);
 }
 
 dbModBTerm* dbModBTerm::create(dbModule* parentModule, const char* name)
@@ -457,7 +449,7 @@ void dbModBTerm::setBusPort(dbBusPort* bus_port)
   _modbterm->busPort_ = bus_port->getId();
 }
 
-dbModBTerm* dbModBTerm::getModBTerm(dbBlock* block, uint dbid)
+dbModBTerm* dbModBTerm::getModBTerm(dbBlock* block, uint32_t dbid)
 {
   _dbBlock* owner = (_dbBlock*) block;
   return (dbModBTerm*) (owner->modbterm_tbl_->getPtr(dbid));
@@ -490,8 +482,8 @@ void dbModBTerm::destroy(dbModBTerm* val)
     callback->inDbModBTermDestroy(val);
   }
 
-  uint prev = _modbterm->prev_entry_;
-  uint next = _modbterm->next_entry_;
+  uint32_t prev = _modbterm->prev_entry_;
+  uint32_t next = _modbterm->next_entry_;
   if (prev == 0) {
     // head of list
     module->modbterms_ = next;

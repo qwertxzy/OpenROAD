@@ -580,7 +580,7 @@ bool NesterovPlace::isDiverged(float& diverge_snapshot_WlCoefX,
   }
 
   if (!npVars_.disableRevertIfDiverge && num_region_diverged_ == 0
-      && !is_routability_need_) {
+      && (!npVars_.routability_driven_mode || !is_routability_need_)) {
     if (is_min_hpwl_) {
       diverge_snapshot_WlCoefX = wireLengthCoefX_;
       diverge_snapshot_WlCoefY = wireLengthCoefY_;
@@ -887,7 +887,8 @@ void NesterovPlace::doBackTracking(const float coeff)
 {
   // Back-Tracking loop
   int numBackTrak = 0;
-  for (numBackTrak = 0; numBackTrak < npVars_.maxBackTrack; numBackTrak++) {
+  for (numBackTrak = 0; numBackTrak < NesterovPlaceVars::maxBackTrack;
+       numBackTrak++) {
     // fill in nextCoordinates with given stepLength_
     for (auto& nb : nbVec_) {
       nb->nesterovUpdateCoordinates(coeff);
@@ -931,7 +932,7 @@ void NesterovPlace::doBackTracking(const float coeff)
   }
 
   debugPrint(log_, GPL, "np", 1, "NumBackTrak: {}", numBackTrak + 1);
-  if (npVars_.maxBackTrack == numBackTrak) {
+  if (NesterovPlaceVars::maxBackTrack == numBackTrak) {
     debugPrint(log_,
                GPL,
                "np",

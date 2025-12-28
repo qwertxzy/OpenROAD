@@ -735,7 +735,7 @@ std::set<odb::Point> RDLRouter::generateTerminalAccessPoints(
 template <class InputIt>
 static odb::Point getValidGridPoint(
     InputIt begin,
-    InputIt end,
+    const InputIt& end,
     const std::function<bool(const odb::Point&)>& valid)
 {
   odb::Point snap;
@@ -1889,6 +1889,18 @@ RDLRouter::generateRoutingTargets(odb::dbNet* net) const
 
   for (auto* iterm : net->getITerms()) {
     if (!iterm->getInst()->isPlaced()) {
+      continue;
+    }
+
+    auto* prop = odb::dbBoolProperty::find(iterm, kRouteProperty);
+    if (prop && !prop->getValue()) {
+      debugPrint(logger_,
+                 utl::PAD,
+                 "Router",
+                 2,
+                 "Skipping termininal on {}: {}",
+                 net->getName(),
+                 iterm->getName());
       continue;
     }
 

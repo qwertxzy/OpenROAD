@@ -4,6 +4,8 @@
 // Generator Code Begin Cpp
 #include "dbModNet.h"
 
+#include <cstdlib>
+
 #include "dbBlock.h"
 #include "dbDatabase.h"
 #include "dbHashTable.hpp"
@@ -19,7 +21,7 @@
 #include "odb/db.h"
 // User Code Begin Includes
 #include <cassert>
-#include <cstdlib>
+#include <cstdint>
 #include <cstring>
 #include <set>
 #include <string>
@@ -80,40 +82,30 @@ _dbModNet::_dbModNet(_dbDatabase* db)
 
 dbIStream& operator>>(dbIStream& stream, _dbModNet& obj)
 {
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.name_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.parent_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.next_entry_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_hier_port_removal)) {
+  if (obj.getDatabase()->isSchema(kSchemaHierPortRemoval)) {
     stream >> obj.prev_entry_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.moditerms_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.modbterms_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.iterms_;
   }
-  if (obj.getDatabase()->isSchema(db_schema_update_hierarchy)) {
+  if (obj.getDatabase()->isSchema(kSchemaUpdateHierarchy)) {
     stream >> obj.bterms_;
   }
-  // User Code Begin >>
-  if (obj.getDatabase()->isSchema(db_schema_db_remove_hash)) {
-    dbDatabase* db = (dbDatabase*) (obj.getDatabase());
-    _dbBlock* block = (_dbBlock*) (db->getChip()->getBlock());
-    _dbModule* module = block->module_tbl_->getPtr(obj.parent_);
-    if (obj.name_) {
-      module->modnet_hash_[obj.name_] = dbId<_dbModNet>(obj.getId());
-    }
-  }
-  // User Code End >>
   return stream;
 }
 
@@ -136,8 +128,15 @@ void _dbModNet::collectMemInfo(MemInfo& info)
   info.size += sizeof(*this);
 
   // User Code Begin collectMemInfo
-  info.children_["name"].add(name_);
+  info.children["name"].add(name_);
   // User Code End collectMemInfo
+}
+
+_dbModNet::~_dbModNet()
+{
+  if (name_) {
+    free((void*) name_);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -295,7 +294,7 @@ void dbModNet::dump() const
   logger->report("--------------------------------------------------");
 }
 
-dbModNet* dbModNet::getModNet(dbBlock* block, uint id)
+dbModNet* dbModNet::getModNet(dbBlock* block, uint32_t id)
 {
   _dbBlock* block_ = (_dbBlock*) block;
   _dbModNet* ret = block_->modnet_tbl_->getPtr(id);
@@ -374,8 +373,8 @@ void dbModNet::destroy(dbModNet* mod_net)
     cb->inDbModNetDestroy(mod_net);
   }
 
-  uint prev = _modnet->prev_entry_;
-  uint next = _modnet->next_entry_;
+  uint32_t prev = _modnet->prev_entry_;
+  uint32_t next = _modnet->next_entry_;
   if (prev == 0) {
     module->modnets_ = next;
   } else {

@@ -43,7 +43,6 @@ class SACoreHardMacro;
 using BoundaryToRegionsMap = std::map<Boundary, std::queue<odb::Rect>>;
 using SoftMacroNameToIdMap = std::map<std::string, int>;
 using ClusterToMacroMap = std::map<int, int>;  // cluster_id -> macro_id
-using BundledNetList = std::vector<BundledNet>;
 
 // The parameters necessary to compute one coordinate of the new
 // origin for aligning the macros' pins to the track-grid
@@ -174,7 +173,7 @@ class HierRTLMP
 
   // Hierarchical Macro Placement 1st stage: Cluster Placement
   void adjustMacroBlockageWeight();
-  void placeChildren(Cluster* parent, bool ignore_std_cell_area = false);
+  void placeChildren(Cluster* parent);
 
   std::vector<odb::Rect> findBlockagesWithinOutline(
       const odb::Rect& outline) const;
@@ -195,10 +194,7 @@ class HierRTLMP
   void updateChildrenRealLocation(Cluster* parent,
                                   float offset_x,
                                   float offset_y);
-  void mergeNets(std::vector<BundledNet>& nets);
-  void considerFixedMacro(const odb::Rect& outline,
-                          std::vector<SoftMacro>& sa_macros,
-                          Cluster* fixed_macro_cluster) const;
+  void mergeNets(BundledNetList& nets);
 
   // Hierarchical Macro Placement 2nd stage: Macro Placement
   void placeMacros(Cluster* cluster);
@@ -248,7 +244,7 @@ class HierRTLMP
                             SACore* sa_core);
   void writeNetFile(const std::string& file_name_prefix,
                     std::vector<SoftMacro>& macros,
-                    std::vector<BundledNet>& nets);
+                    BundledNetList& nets);
   void writeFloorplanFile(const std::string& file_name_prefix,
                           std::vector<SoftMacro>& macros);
   template <typename SACore>

@@ -35,6 +35,7 @@ from helper import (
 # map types to their header if it isn't equal to their name
 std_type_hdr = {
     "int16_t": "cstdint",
+    "uint32_t": "cstdint",
     "pair": "utility",
 }
 
@@ -108,11 +109,17 @@ def add_field_attributes(field, klass, flags_struct, schema):
         flag_num_bits = int(field["bits"])
     field["bitFields"] = is_bit_fields(field, klass["structs"])
 
+    # Handle types from <cstdint> that are also in the global namespace (eg uint32_t)
+    hdr = std_type_hdr.get(field["type"])
+    if hdr:
+        klass["h_sys_includes"].append(hdr)
+        klass["cpp_sys_includes"].append(hdr)
+
     if field["type"].startswith("std::"):
         for type in re.findall(r"std::(\w+)", field["type"]):
             hdr = std_type_hdr.get(type, type)
-            klass["h_sys_includes"].extend([hdr])
-            klass["cpp_sys_includes"].extend([hdr])
+            klass["h_sys_includes"].append(hdr)
+            klass["cpp_sys_includes"].append(hdr)
 
     field["isRef"] = is_ref(field["type"]) if field.get("parent") is not None else False
     field["refType"] = get_ref_type(field["type"])
@@ -201,12 +208,16 @@ def add_field_attributes(field, klass, flags_struct, schema):
         field["setterArgumentType"] = field["getterReturnType"] = field["type"]
 
     # For fields that we need to free/destroy in the destructor
-    if (
-        field["name"] == "_name"
+    needs_free = (
+        field["name"] == "name_"
+        and field["type"] == "char *"
         and "no-destruct" not in field["flags"]
-        or "table" in field
-    ):
+    )
+
+    if needs_free or "table" in field:
         klass["needs_non_default_destructor"] = True
+        if needs_free:
+            klass["cpp_sys_includes"].extend(["cstdlib"])
     return flag_num_bits
 
 
@@ -222,7 +233,7 @@ def add_bitfield_flags(klass, flag_num_bits, flags_struct):
     if flag_num_bits > 0 and flag_num_bits % 32 != 0:
         spare_bits_field = {
             "name": "spare_bits",
-            "type": "uint",
+            "type": "uint32_t",
             "bits": 32 - (flag_num_bits % 32),
             "flags": ["no-cmp", "no-set", "no-get", "no-serial"],
         }
@@ -291,7 +302,7 @@ def preprocess_klass(klass):
         klass["declared_classes"].insert(2, "_dbDatabase")
         klass["cpp_includes"].append("dbDatabase.h")
     klass["h_includes"].insert(0, "dbCore.h")
-    klass["h_includes"].insert(1, "odb/odb.h")
+    klass["h_sys_includes"].insert(1, "cstdint")
     name = klass["name"]
     klass["cpp_includes"].extend(["dbTable.h", "dbTable.hpp", "odb/db.h", f"{name}.h"])
     if klass["hasBitFields"]:
