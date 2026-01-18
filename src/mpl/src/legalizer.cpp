@@ -23,77 +23,11 @@ void Legalizer::init(utl::Logger* logger, odb::dbDatabase* db) {
   
   // Sort all insts into std_cells_ and macros_
   macros_.clear();
-  std_cells_.clear();
 
   for (auto inst : all_insts) {
-    if (isStdCell(inst)) {
-      std_cells_.push_back(inst);
-    } else {
+    if (inst->isBlock()) {
       macros_.push_back(inst);
     }
-  }
-}
-
-// Stolen from dpl/src/Objects.cpp
-// TODO: Maybe check if the endcaps/tapcells can be skipped so this doesn't ruin floorplanning step
-bool Legalizer::isStdCell(dbInst* inst) const {
-  if (inst == nullptr) {
-    return false;
-  }
-  dbMasterType type = inst->getMaster()->getType();
-  // Use switch so if new types are added we get a compiler warning.
-  switch (type.getValue()) {
-    case dbMasterType::CORE:
-    case dbMasterType::CORE_ANTENNACELL:
-    case dbMasterType::CORE_FEEDTHRU:
-    case dbMasterType::CORE_TIEHIGH:
-    case dbMasterType::CORE_TIELOW:
-    case dbMasterType::CORE_SPACER:
-    case dbMasterType::CORE_WELLTAP:
-    case dbMasterType::ENDCAP:
-    case dbMasterType::ENDCAP_PRE:
-    case dbMasterType::ENDCAP_POST:
-    case dbMasterType::ENDCAP_TOPLEFT:
-    case dbMasterType::ENDCAP_TOPRIGHT:
-    case dbMasterType::ENDCAP_BOTTOMLEFT:
-    case dbMasterType::ENDCAP_BOTTOMRIGHT:
-    case dbMasterType::ENDCAP_LEF58_BOTTOMEDGE:
-    case dbMasterType::ENDCAP_LEF58_TOPEDGE:
-    case dbMasterType::ENDCAP_LEF58_RIGHTEDGE:
-    case dbMasterType::ENDCAP_LEF58_LEFTEDGE:
-    case dbMasterType::ENDCAP_LEF58_RIGHTBOTTOMEDGE:
-    case dbMasterType::ENDCAP_LEF58_LEFTBOTTOMEDGE:
-    case dbMasterType::ENDCAP_LEF58_RIGHTTOPEDGE:
-    case dbMasterType::ENDCAP_LEF58_LEFTTOPEDGE:
-    case dbMasterType::ENDCAP_LEF58_RIGHTBOTTOMCORNER:
-    case dbMasterType::ENDCAP_LEF58_LEFTBOTTOMCORNER:
-    case dbMasterType::ENDCAP_LEF58_RIGHTTOPCORNER:
-    case dbMasterType::ENDCAP_LEF58_LEFTTOPCORNER:
-      return true;
-    case dbMasterType::BLOCK:
-    case dbMasterType::BLOCK_BLACKBOX:
-    case dbMasterType::BLOCK_SOFT:
-      // These classes are completely ignored by the placer.
-    case dbMasterType::COVER:
-    case dbMasterType::COVER_BUMP:
-    case dbMasterType::RING:
-    case dbMasterType::PAD:
-    case dbMasterType::PAD_AREAIO:
-    case dbMasterType::PAD_INPUT:
-    case dbMasterType::PAD_OUTPUT:
-    case dbMasterType::PAD_INOUT:
-    case dbMasterType::PAD_POWER:
-    case dbMasterType::PAD_SPACER:
-      return false;
-  }
-  // gcc warniing
-  return false;
-}
-
-// Method to unplace std cells
-void Legalizer::unplaceStdCells() {
-  for (dbInst* cell : std_cells_) {
-    cell->setPlacementStatus(odb::dbPlacementStatus::UNPLACED);
   }
 }
 
@@ -174,7 +108,14 @@ void Legalizer::clipInstBoundingBox(dbInst* inst, int halo) {
 //  - Every macro has a spring force to its original position
 //  - Every macro has a repulsive force for each overlap
 //  - Iterate until overlaps are resolved or max_iter is reached
-void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multiplier, float damping_factor, int halo_width_raw, int max_iter) {
+void Legalizer::fixMacroPlacement(
+  float overlap_multiplier, 
+  float origin_multiplier, 
+  float boundary_multiplier, 
+  float damping_factor, 
+  int halo_width_raw, 
+  int max_iter
+) {
   // Convert raw halo width to dbu
   int halo_width = halo_width_raw * db_->getTech()->getDbUnitsPerMicron();
 
@@ -194,22 +135,36 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
   
   // Save force vectors for every macro
   std::map<dbInst*, Vector2D> forces = std::map<dbInst*, Vector2D>();
-
-  // Initialize forces with a spring to each macro's original position
+  
+  // Initialize velocity vectors
+  std::map<dbInst*, Vector2D> velocities = std::map<dbInst*, Vector2D>();
   for (auto& macro : macros_) {
-    odb::Point original_position = original_coordinates[macro];
-    odb::Point macro_pos = macro->getOrigin();
-    Vector2D spring_vector = Vector2D(macro_pos, original_position);
-
-    // Add multiplied spring force to forces map
-    forces[macro] = spring_vector * origin_multiplier;
+    velocities[macro] = Vector2D(0, 0);
   }
+
+  // Get core area for boundary forces
+  odb::Rect core = db_->getChip()->getBlock()->getCoreArea();
+  odb::Point center_die = core.center();
+  
+  // Calculate max distance from center to boundary
+  double max_distance = sqrt(pow(core.dx() / 2.0, 2) + pow(core.dy() / 2.0, 2));
 
   // Save total overlap for this iteration
   int64_t total_overlap = 0;
 
   for (int iteration = 0; iteration < max_iter; iteration++) {
     total_overlap = 0;
+
+    // Initialize forces with a spring to each macro's original position
+    for (auto& macro : macros_) {
+      odb::Point original_position = original_coordinates[macro];
+      odb::Point macro_pos = macro->getOrigin();
+      Vector2D spring_vector = Vector2D(macro_pos, original_position);
+
+      // Add multiplied spring force to forces map
+      forces[macro] = spring_vector * origin_multiplier;
+    }
+
     // Loop over all macros i
     for (int i = 0; i < macros_.size(); i++) {
       dbInst* macro_i = macros_[i];
@@ -250,14 +205,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
             overlap_dist
           );
 
-          // Calculate force magnitude
-          int force_magnitude = overlap_multiplier * overlap_dist;
-
-          // Calculate additional damping term
-          float force_damping = -damping_factor * sqrt(force_magnitude);
-
-          // Create a vector from these
-          Vector2D force_vector = direction * force_magnitude + Vector2D(force_damping, force_damping);
+          Vector2D force_vector = direction * overlap_dist;
 
           debugPrint(logger_,
             MPL,
@@ -278,33 +226,41 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
           total_overlap += overlap_rect.area();
         }
       }
+
+      // Also add boundary push forces
+      odb::Point current_pos = macro_i->getOrigin();
+      odb::Rect macro_bbox = macro_i->getBBox()->getBox();
+      odb::Point macro_center = macro_bbox.center();
+      
+      // Direction from die center to macro center
+      Vector2D direction = Vector2D(center_die, macro_center);
+      double distance = direction.getMagnitude();
+      
+      if (distance > 1e-6) {
+        direction.normalize();
+        
+        // Boundary factor smallest at boundary, larger near center
+        double boundary_factor = (max_distance - distance) / max_distance;
+        
+        Vector2D boundary_force = direction * (boundary_multiplier * boundary_factor);
+        forces[macro_i] = forces[macro_i] + boundary_force;
+      }
     }
 
     logger_->info(MPL, 38, "Iteration {}: total overlap = {}", iteration, total_overlap);
 
-    // Apply forces to all macros
-    for (auto& force : forces) {
-      dbInst* macro = force.first;
-      Vector2D force_vector = force.second;
-      if (force_vector.getMagnitude() == 0) {
-        continue;
-      }
+    // Apply velocity-based damping and update positions
+    for (auto& macro : macros_) {
+      Vector2D force_vector = forces[macro];
       
-      debugPrint(logger_,
-        MPL,
-        "macro",
-        1,
-        "Macro {}: force vector = ({}, {})",
-        macro->getName(),
-        force_vector.getX(),
-        force_vector.getY()
-      );
+      // Update velocity with damping: v = (1 - damping) * v + overlap_multiplier * F
+      velocities[macro] = velocities[macro] * (1.0 - damping_factor) + force_vector * overlap_multiplier;
 
       odb::Point current_pos = macro->getOrigin();
       
-      // Move macro by force vector
-      current_pos.addX(force_vector.getX());
-      current_pos.addY(force_vector.getY());
+      // Move macro by velocity
+      current_pos.addX(velocities[macro].getX());
+      current_pos.addY(velocities[macro].getY());
       
       // Set new position and clip it
       macro->setOrigin(current_pos.getX(), current_pos.getY());
@@ -326,9 +282,9 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
   }
 
   // Before we return, maybe macros are already well placed, just with overlap from the halo bloat..
-  //  so check if all macros overlap with 90% of the halo width
+  //  so check if all macros overlap with 98% of the halo width
   if (total_overlap > 0 && halo_width > 0) {
-    int adjusted_halo_width = round(halo_width * 0.95);
+    int adjusted_halo_width = round(halo_width * 0.98);
     bool mostly_overlap_free = true;
 
     // Loop over all macros i
@@ -357,7 +313,7 @@ void Legalizer::fixMacroPlacement(float overlap_multiplier, float origin_multipl
     
     // If all maros are mostly overlap free, snap them anyway
     if (mostly_overlap_free) {
-      logger_->info(MPL, 54, "95% of Halos were valid, snapped macros anyways");
+      logger_->info(MPL, 54, "98% of Halos were valid, snapped macros anyways");
       snapMacros(macros_, halo_width);
     } else{
       logger_->error(MPL, 48, "Macro legaization could not resolve overlaps in the given number of iterations.");

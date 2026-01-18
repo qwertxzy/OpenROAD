@@ -331,18 +331,19 @@ proc mpl_debug { args } {
 }
 }
 
-sta::define_cmd_args "fix_macros" { [-overlap_multiplier overlap_multiplier] \
+sta::define_cmd_args "legalize_macros" { [-overlap_multiplier overlap_multiplier] \
                                     [-origin_multiplier origin_multiplier] \
-                                    [-damping_factor damping_factor]
-                                    [-halo_width halo_width]
+                                    [-boundary_multiplier boundary_multiplier] \
+                                    [-damping_factor damping_factor] \
+                                    [-halo_width halo_width] \
                                     [-max_iterations max_iterations] }
 
-proc fix_macros { args } {
+proc legalize_macros { args } {
   if { [ord::get_db_block] == "NULL" } {
     utl::error MPL2 22 "No design block found."
   }
 
-  sta::parse_key_args "fix_macros" args \
+  sta::parse_key_args "legalize_macros" args \
     keys {-overlap_multiplier -origin_multiplier -damping_factor -halo_width -max_iterations} flags {}
   
   set overlap_multiplier 0.3
@@ -355,6 +356,12 @@ proc fix_macros { args } {
   if { [info exists keys(-origin_multiplier)] } {
     set origin_multiplier $keys(-origin_multiplier)
     sta::check_positive_float "-origin_multiplier" $origin_multiplier
+  }
+
+  set boundary_multiplier 0.01
+  if { [info exists keys(-boundary_multiplier)] } {
+    set boundary_multiplier $keys(-boundary_multiplier)
+    sta::check_positive_float "-boundary_multiplier" $boundary_multiplier
   }
 
   set damping_factor 0.2
@@ -375,6 +382,6 @@ proc fix_macros { args } {
     sta::check_positive_integer "-max_iterations" $max_iterations
   }
 
-  sta::check_argc_eq0 "fix_macros" $args
-  mpl::fix_macro_placement $overlap_multiplier $origin_multiplier $damping_factor $halo_width $max_iterations
+  sta::check_argc_eq0 "legalize_macros" $args
+  mpl::fix_macro_placement $overlap_multiplier $origin_multiplier $boundary_multiplier $damping_factor $halo_width $max_iterations
 }
