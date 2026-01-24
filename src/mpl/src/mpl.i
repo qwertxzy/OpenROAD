@@ -150,11 +150,20 @@ fix_macro_placement(float overlap_multiplier,
   float boundary_multiplier,
   float damping_factor,
   int halo_width,
-  int max_iter
+  int max_iter,
+  int consecutive_zero_iters
 ) {
   auto macro_placer = getMacroPlacer();
   mpl::Legalizer legalizer = macro_placer->getLegalizer();
-  legalizer.fixMacroPlacement(overlap_multiplier, origin_multiplier, boundary_multiplier, damping_factor, halo_width, max_iter);
+  legalizer.fixMacroPlacement(
+    overlap_multiplier,
+    origin_multiplier,
+    boundary_multiplier,
+    damping_factor,
+    halo_width,
+    max_iter,
+    consecutive_zero_iters
+  );
 }
 
 } // namespace

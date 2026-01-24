@@ -114,7 +114,8 @@ void Legalizer::fixMacroPlacement(
   float boundary_multiplier, 
   float damping_factor, 
   int halo_width_raw, 
-  int max_iter
+  int max_iter,
+  int consecutive_zero_iters
 ) {
   // Convert raw halo width to dbu
   int halo_width = halo_width_raw * db_->getTech()->getDbUnitsPerMicron();
@@ -151,6 +152,9 @@ void Legalizer::fixMacroPlacement(
 
   // Save total overlap for this iteration
   int64_t total_overlap = 0;
+  
+  // Counter for consecutive iterations with zero overlap
+  int zero_overlap_count = 0;
 
   for (int iteration = 0; iteration < max_iter; iteration++) {
     total_overlap = 0;
@@ -268,14 +272,22 @@ void Legalizer::fixMacroPlacement(
       clipInstBoundingBox(macro, halo_width);
     }
 
-    // If total overlap area was 0, break out of the loop
+    // Check if overlap is zero and update counter
     if (total_overlap == 0) {
-      logger_->info(MPL, 49, "Resolved all overlaps in {} iterations", iteration);
+      zero_overlap_count++;
+      
+      // Check if we've had enough consecutive zero overlap iterations
+      if (zero_overlap_count >= consecutive_zero_iters) {
+        logger_->info(MPL, 55, "Resolved all overlaps in {} iterations ({} consecutive zero-overlap iterations)", 
+                      iteration + 1, zero_overlap_count);
 
-      // Snap all macros to manufacturing grid
-      snapMacros(macros_, halo_width);
+        // Snap all macros to manufacturing grid
+        snapMacros(macros_, halo_width);
 
-      break;
+        break;
+      }
+    } else {
+      zero_overlap_count = 0;
     }
 
     // Clear forces for next iteration

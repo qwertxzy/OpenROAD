@@ -336,7 +336,8 @@ sta::define_cmd_args "legalize_macros" { [-overlap_multiplier overlap_multiplier
                                     [-boundary_multiplier boundary_multiplier] \
                                     [-damping_factor damping_factor] \
                                     [-halo_width halo_width] \
-                                    [-max_iterations max_iterations] }
+                                    [-max_iterations max_iterations] \
+                                    [-consecutive_zero_iters consecutive_zero_iters] }
 
 proc legalize_macros { args } {
   if { [ord::get_db_block] == "NULL" } {
@@ -344,7 +345,7 @@ proc legalize_macros { args } {
   }
 
   sta::parse_key_args "legalize_macros" args \
-    keys {-overlap_multiplier -origin_multiplier -boundary_multiplier -damping_factor -halo_width -max_iterations} flags {}
+    keys {-overlap_multiplier -origin_multiplier -boundary_multiplier -damping_factor -halo_width -max_iterations -consecutive_zero_iters} flags {}
   
   set overlap_multiplier 0.4
   if { [info exists keys(-overlap_multiplier)] } {
@@ -382,6 +383,12 @@ proc legalize_macros { args } {
     sta::check_positive_integer "-max_iterations" $max_iterations
   }
 
+  set consecutive_zero_iters 0
+  if { [info exists keys(-consecutive_zero_iters)] } {
+    set consecutive_zero_iters $keys(-consecutive_zero_iters)
+    sta::check_positive_integer "-consecutive_zero_iters" $consecutive_zero_iters
+  }
+
   sta::check_argc_eq0 "legalize_macros" $args
-  mpl::fix_macro_placement $overlap_multiplier $origin_multiplier $boundary_multiplier $damping_factor $halo_width $max_iterations
+  mpl::fix_macro_placement $overlap_multiplier $origin_multiplier $boundary_multiplier $damping_factor $halo_width $max_iterations $consecutive_zero_iters
 }

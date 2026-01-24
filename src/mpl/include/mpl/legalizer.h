@@ -21,7 +21,7 @@ class Legalizer {
     void init(utl::Logger* logger, odb::dbDatabase* db);
 
     void snapMacros(vector<dbInst*> macros, int halo_width);
-    void fixMacroPlacement(float overlap_multiplier, float origin_multiplier, float boundary_multiplier, float damping_factor, int halo_width_raw, int max_iter);
+    void fixMacroPlacement(float overlap_multiplier, float origin_multiplier, float boundary_multiplier, float damping_factor, int halo_width_raw, int max_iter, int consecutive_zero_iters);
 
   private:
     void clipInstBoundingBox(dbInst* inst, int halo = 0);
