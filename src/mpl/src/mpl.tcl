@@ -344,7 +344,7 @@ proc legalize_macros { args } {
   }
 
   sta::parse_key_args "legalize_macros" args \
-    keys {-overlap_multiplier -origin_multiplier -damping_factor -halo_width -max_iterations} flags {}
+    keys {-overlap_multiplier -origin_multiplier -boundary_multiplier -damping_factor -halo_width -max_iterations} flags {}
   
   set overlap_multiplier 0.3
   if { [info exists keys(-overlap_multiplier)] } {

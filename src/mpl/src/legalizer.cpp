@@ -240,7 +240,8 @@ void Legalizer::fixMacroPlacement(
         direction.normalize();
         
         // Boundary factor smallest at boundary, larger near center
-        double boundary_factor = (max_distance - distance) / max_distance;
+        // Cubic falloff as these got very large
+        double boundary_factor = pow((max_distance - distance) / max_distance, 3);
         
         Vector2D boundary_force = direction * (boundary_multiplier * boundary_factor);
         forces[macro_i] = forces[macro_i] + boundary_force;
@@ -282,9 +283,9 @@ void Legalizer::fixMacroPlacement(
   }
 
   // Before we return, maybe macros are already well placed, just with overlap from the halo bloat..
-  //  so check if all macros overlap with 98% of the halo width
+  //  so check if all macros overlap with 95% of the halo width
   if (total_overlap > 0 && halo_width > 0) {
-    int adjusted_halo_width = round(halo_width * 0.98);
+    int adjusted_halo_width = round(halo_width * 0.95);
     bool mostly_overlap_free = true;
 
     // Loop over all macros i
@@ -313,7 +314,7 @@ void Legalizer::fixMacroPlacement(
     
     // If all maros are mostly overlap free, snap them anyway
     if (mostly_overlap_free) {
-      logger_->info(MPL, 54, "98% of Halos were valid, snapped macros anyways");
+      logger_->info(MPL, 54, "95% of Halos were valid, snapped macros anyways");
       snapMacros(macros_, halo_width);
     } else{
       logger_->error(MPL, 48, "Macro legaization could not resolve overlaps in the given number of iterations.");
