@@ -72,17 +72,16 @@ void Legalizer::clipInstBoundingBox(dbInst* inst, int halo) {
     inst_bbox.yMax()
   );
 
-  // Actual clipping
+  // Actual clipping, add/subtract halo once to keep it towards the edge
   if (inst_bbox.xMin() < core.xMin()) {
-    current_pos.setX(core.xMin());
+    current_pos.setX(core.xMin() + halo);
   } else if (inst_bbox.xMax() > core.xMax()) {
-    current_pos.setX(core.xMax() - inst_bbox.dx());
+    current_pos.setX(core.xMax() - raw_inst_bbox.dx() - halo);
   }
-
   if (inst_bbox.yMin() < core.yMin()) {
-    current_pos.setY(core.yMin());
+    current_pos.setY(core.yMin() + halo);
   } else if (inst_bbox.yMax() > core.yMax()) {
-    current_pos.setY(core.yMax() - inst_bbox.dy());
+    current_pos.setY(core.yMax() - raw_inst_bbox.dy() - halo);
   }
 
   // Set new position
@@ -103,11 +102,6 @@ void Legalizer::clipInstBoundingBox(dbInst* inst, int halo) {
   );
 }
 
-// LEO: Method to fix slight overlaps between macros after GPL
-// Plan:
-//  - Every macro has a spring force to its original position
-//  - Every macro has a repulsive force for each overlap
-//  - Iterate until overlaps are resolved or max_iter is reached
 void Legalizer::fixMacroPlacement(
   float overlap_multiplier, 
   float origin_multiplier, 
@@ -134,11 +128,11 @@ void Legalizer::fixMacroPlacement(
     original_coordinates[macro] = macro->getOrigin();
   }
   
-  // Save force vectors for every macro
+  // Save force vectors and velocity vectors for every macro
   std::map<dbInst*, Vector2D> forces = std::map<dbInst*, Vector2D>();
-  
-  // Initialize velocity vectors
   std::map<dbInst*, Vector2D> velocities = std::map<dbInst*, Vector2D>();
+  
+  // Init velocities to 0 here, forces every iteration
   for (auto& macro : macros_) {
     velocities[macro] = Vector2D(0, 0);
   }
@@ -147,29 +141,27 @@ void Legalizer::fixMacroPlacement(
   odb::Rect core = db_->getChip()->getBlock()->getCoreArea();
   odb::Point center_die = core.center();
   
-  // Calculate max distance from center to boundary
+  // Calculate max distance from center to boundary for later boundary forces
   double max_distance = sqrt(pow(core.dx() / 2.0, 2) + pow(core.dy() / 2.0, 2));
 
-  // Save total overlap for this iteration
+  // Save total overlap for every iteration
   int64_t total_overlap = 0;
   
   // Counter for consecutive iterations with zero overlap
   int zero_overlap_count = 0;
 
   for (int iteration = 0; iteration < max_iter; iteration++) {
+    // Reset force accumulation at the beginning of every iteration
+    for (auto& macro : macros_) {
+      forces[macro] = Vector2D(0, 0);
+    }
+    // Same for total overlap area
     total_overlap = 0;
 
-    // Initialize forces with a spring to each macro's original position
-    for (auto& macro : macros_) {
-      odb::Point original_position = original_coordinates[macro];
-      odb::Point macro_pos = macro->getOrigin();
-      Vector2D spring_vector = Vector2D(macro_pos, original_position);
+    // Having one block per force isn't best for performance
+    // but it kees the code cleaner imo and we have enough performance
 
-      // Add multiplied spring force to forces map
-      forces[macro] = spring_vector * origin_multiplier;
-    }
-
-    // Loop over all macros i
+    // Calculate overlap forces by looping over all macros i
     for (int i = 0; i < macros_.size(); i++) {
       dbInst* macro_i = macros_[i];
       odb::Rect rect_i;
@@ -177,8 +169,8 @@ void Legalizer::fixMacroPlacement(
         macro_i->getBBox()->getBox().bloat(halo_width, rect_i);
       } else {
         rect_i = macro_i->getBBox()->getBox();
-      }     
-
+      }
+      
       // Loop over all other macros j
       for (int j = i + 1; j < macros_.size(); j++) {
         dbInst* macro_j = macros_[j];
@@ -189,86 +181,125 @@ void Legalizer::fixMacroPlacement(
           rect_j = macro_j->getBBox()->getBox();
         }
 
-        // Check if overlap is nonzero
+        // Check for rect intersection
         if (rect_i.intersects(rect_j)) {
-          // Direction is vector from center i to center j
+
+          // Get direction from center i to j 
           Vector2D direction = Vector2D(rect_i.center(), rect_j.center());
-          direction.normalize();
+          
+          // If magnitude is very small just use a small horizontal direction as fallback
+          if (direction.getMagnitude() < 1e-6) {
+            direction = Vector2D(1.0, 0.0);
+          } else {
+            // else normalize
+            direction.normalize();
 
-          // Calculate overlap distances
+            // Add small perpendicular pertubabtion for stacked macros along one axis
+            // Scale 1 / origin multiplier to overcome it pulling them back
+            float pertubation_strength;
+            if (origin_multiplier > 0.0) {
+              pertubation_strength = 1.0 / origin_multiplier;
+            } else {
+              pertubation_strength = 5.0; // magic number alert
+            }
+
+            if (std::abs(direction.getX()) < 1e-6) {
+              direction = Vector2D(pertubation_strength, direction.getY());
+            } 
+            else if (std::abs(direction.getY()) < 1e-6) {
+              direction = Vector2D(direction.getX(), pertubation_strength);
+            }
+            direction.normalize();
+          }
+
+          // To scale the force, take min of overlap x and y distance
           odb::Rect overlap_rect = rect_i.intersect(rect_j);
-          int overlap_dist = std::min(overlap_rect.dx(), overlap_rect.dy());
-        
-          debugPrint(logger_,
-            MPL,
-            "macro",
-            2,
-            "Overlap between {} and {}: overlap distance = {}",
-            macro_i->getName(),
-            macro_j->getName(),
-            overlap_dist
-          );
+          float overlap_dist = std::min(overlap_rect.dx(), overlap_rect.dy());
 
-          Vector2D force_vector = direction * overlap_dist;
-
-          debugPrint(logger_,
-            MPL,
-            "macro",
-            2,
-            "Calculated force vector between {} and {}: ({}, {})",
-            macro_i->getName(),
-            macro_j->getName(),
-            force_vector.getX(),
-            force_vector.getY()
-          );
-
-          // Add vector to macro_j and subtract from macro_i
-          forces[macro_j] = forces[macro_j] + force_vector;
-          forces[macro_i] = forces[macro_i] - force_vector;
-
-          // Update total overlap
+          // (while we're here add overlap_rects area to accumulator)
           total_overlap += overlap_rect.area();
+
+          // Force vector is now direction * this distance
+          Vector2D overlap_vector = direction * overlap_dist * overlap_multiplier;
+
+          // TODO: remove this but it might come in handy again..
+          // debugPrint(logger_, MPL, "macro", 1,
+          //   "macro_i name: {} / macro_j name: {} / macro_i origin: {} / macro_j origin: {} / overlap_rect xMin, xMax, yMin, yMax: {}, {}, {}, {} / overlap_dist: {} / direction x,y: {}, {} / direction post normalize x, y: {}, {} / final magnitude: {}",
+          //   macro_i->getName(),
+          //   macro_j->getName(),
+          //   macro_i->getOrigin(),
+          //   macro_j->getOrigin(),
+          //   overlap_rect.xMin(),
+          //   overlap_rect.xMax(),
+          //   overlap_rect.yMin(),
+          //   overlap_rect.yMax(),
+          //   overlap_dist,
+          //   Vector2D(rect_i.center(), rect_j.center()).getX(),
+          //   Vector2D(rect_i.center(), rect_j.center()).getY(),
+          //   direction.getX(),
+          //   direction.getY(),
+          //   overlap_vector.getMagnitude()
+          // );
+
+          // Add this force to the forces map for macros i and j
+          forces[macro_i] = forces[macro_i] - overlap_vector;
+          forces[macro_j] = forces[macro_j] + overlap_vector;
         }
       }
+    } // end macro pair loop
 
-      // Also add boundary push forces
-      odb::Point current_pos = macro_i->getOrigin();
-      odb::Rect macro_bbox = macro_i->getBBox()->getBox();
-      odb::Point macro_center = macro_bbox.center();
-      
-      // Direction from die center to macro center
-      Vector2D direction = Vector2D(center_die, macro_center);
-      double distance = direction.getMagnitude();
-      
-      if (distance > 1e-6) {
-        direction.normalize();
-        
-        // Boundary factor smallest at boundary, larger near center
-        // Cubic falloff as these got very large
-        double boundary_factor = pow((max_distance - distance) / max_distance, 3);
-        
-        Vector2D boundary_force = direction * (boundary_multiplier * boundary_factor);
-        forces[macro_i] = forces[macro_i] + boundary_force;
+    // Spring forces to original position
+    if (origin_multiplier > 0.0) {
+      for (auto macro : macros_) {
+        odb::Point current_position = macro->getOrigin();
+        odb::Point original_position = original_coordinates[macro];
+
+        // Compute the vector again
+        Vector2D direction = Vector2D(current_position, original_position);
+
+        if (direction.getMagnitude() > 1e-6) {
+          forces[macro] = forces[macro] + (direction * origin_multiplier);
+        }
+      }
+    }
+
+    // Boundary push force
+    if (boundary_multiplier > 0.0) {
+      for (auto macro : macros_) {
+        odb::Point current_center = macro->getBBox()->getBox().center();
+
+        // Get direction from center of the die to the current center
+        Vector2D direction = Vector2D(center_die, current_center);
+
+        // Scale this force so that its strongest at the center and falls off to the edge
+        float scalar = pow((max_distance - direction.getMagnitude()) / max_distance, 3);
+
+        // Finally, apply to the forces with the multiplier
+        forces[macro] = forces[macro] + (direction * scalar * boundary_multiplier);
       }
     }
 
     logger_->info(MPL, 38, "Iteration {}: total overlap = {}", iteration, total_overlap);
 
-    // Apply velocity-based damping and update positions
-    for (auto& macro : macros_) {
-      Vector2D force_vector = forces[macro];
-      
-      // Update velocity with damping: v = (1 - damping) * v + overlap_multiplier * F
-      velocities[macro] = velocities[macro] * (1.0 - damping_factor) + force_vector * overlap_multiplier;
+    ////////////////
+    // Force computation complete, now update velocities based on these forces
+    ////////////////
 
-      odb::Point current_pos = macro->getOrigin();
-      
-      // Move macro by velocity
-      current_pos.addX(velocities[macro].getX());
-      current_pos.addY(velocities[macro].getY());
-      
-      // Set new position and clip it
-      macro->setOrigin(current_pos.getX(), current_pos.getY());
+    for (auto macro : macros_) {
+      // Update velocities
+      velocities[macro] = velocities[macro] * (1.0 - damping_factor) + forces[macro];
+
+      debugPrint(logger_, MPL, "macro", 1, "Velocities for macro {}: ({}/{})", 
+        macro->getName(), velocities[macro].getX(), velocities[macro].getY());
+
+      // Update position by applying velocities in x and y component
+      auto old_pos = macro->getOrigin();
+      macro->setOrigin(
+        old_pos.getX() + velocities[macro].getX(),
+        old_pos.getY() + velocities[macro].getY()
+      );
+
+      // Additionally clip macros to core area
       clipInstBoundingBox(macro, halo_width);
     }
 
@@ -289,14 +320,11 @@ void Legalizer::fixMacroPlacement(
     } else {
       zero_overlap_count = 0;
     }
-
-    // Clear forces for next iteration
-    forces.clear();
   }
 
   // Before we return, maybe macros are already well placed, just with overlap from the halo bloat..
   //  so check if all macros overlap with 95% of the halo width
-  if (total_overlap > 0 && halo_width > 0) {
+  if (total_overlap > 0) {
     int adjusted_halo_width = round(halo_width * 0.95);
     bool mostly_overlap_free = true;
 
