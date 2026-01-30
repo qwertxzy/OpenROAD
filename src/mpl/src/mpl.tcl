@@ -347,13 +347,13 @@ proc legalize_macros { args } {
   sta::parse_key_args "legalize_macros" args \
     keys {-overlap_multiplier -origin_multiplier -boundary_multiplier -damping_factor -halo_width -max_iterations -consecutive_zero_iters} flags {}
   
-  set overlap_multiplier 0.4
+  set overlap_multiplier 1.1
   if { [info exists keys(-overlap_multiplier)] } {
     set overlap_multiplier $keys(-overlap_multiplier)
     sta::check_positive_float "-overlap_multiplier" $overlap_multiplier
   }
 
-  set origin_multiplier 0.2
+  set origin_multiplier 0.001
   if { [info exists keys(-origin_multiplier)] } {
     set origin_multiplier $keys(-origin_multiplier)
     sta::check_positive_float "-origin_multiplier" $origin_multiplier
@@ -371,7 +371,7 @@ proc legalize_macros { args } {
     sta::check_positive_float "-damping_factor" $damping_factor
   }
 
-  set halo_width 0
+  set halo_width 1
   if { [info exists keys(-halo_width)] } {
     set halo_width $keys(-halo_width)
     sta::check_positive_integer "-halo_width" $halo_width
@@ -383,7 +383,7 @@ proc legalize_macros { args } {
     sta::check_positive_integer "-max_iterations" $max_iterations
   }
 
-  set consecutive_zero_iters 0
+  set consecutive_zero_iters 2
   if { [info exists keys(-consecutive_zero_iters)] } {
     set consecutive_zero_iters $keys(-consecutive_zero_iters)
     sta::check_positive_integer "-consecutive_zero_iters" $consecutive_zero_iters
