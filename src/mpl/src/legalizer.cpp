@@ -38,12 +38,14 @@ void Legalizer::snapMacros(vector<dbInst*> macros, int halo_width)
   Snapper snapper(logger_);
   
   for (auto& macro : macros) {
+    // Clip macros to core area first (leaving halo towards the boundary)
+    clipInstBoundingBox(macro, halo_width);
+
+    // Then snap locations to the nearest valid one
     snapper.setMacro(macro);
     snapper.snapMacro();
     
-    // Snapper can have moved the macro out of the core again
-    // .. so we clip it one more time
-    clipInstBoundingBox(macro, halo_width);
+
   }
 }
 
