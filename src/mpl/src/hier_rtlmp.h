@@ -400,6 +400,7 @@ class Snapper
   void attemptSnapToExtraPatterns(int start_index,
                                   const LayerDataList& layers_data_list,
                                   const odb::dbTechLayerDir& target_direction);
+  bool isOriginWithinCore(int origin, const odb::dbTechLayerDir& direction);
 
   utl::Logger* logger_;
   odb::dbInst* inst_;

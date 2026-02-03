@@ -49,11 +49,12 @@ void Legalizer::snapMacros(vector<dbInst*> macros, int halo_width)
 
 // Clip the inst to the inside of the core area by its bounding box
 void Legalizer::clipInstBoundingBox(dbInst* inst, int halo) {
-  // Get core dimensions for clipping  
+  // Get core dimensions for clipping
   odb::Rect core = db_->getChip()->getBlock()->getCoreArea();
 
-  // Get current position
-  odb::Point current_pos = inst->getOrigin();
+  // Get current position before clipping
+  odb::Point old_pos = inst->getOrigin();
+  odb::Point current_pos = old_pos;
   odb::Rect raw_inst_bbox = inst->getBBox()->getBox();
 
   // Bloat int bbox so we can leave the halo towards the core edge too
@@ -86,6 +87,22 @@ void Legalizer::clipInstBoundingBox(dbInst* inst, int halo) {
 
   // Set new position
   inst->setOrigin(current_pos.getX(), current_pos.getY());
+
+  // Warn if clipping moved the macro significantly (potential grid alignment issue)
+  int movement_x = std::abs(current_pos.getX() - old_pos.getX());
+  int movement_y = std::abs(current_pos.getY() - old_pos.getY());
+  int total_movement = movement_x + movement_y;
+
+  if (total_movement > 0) {
+    logger_->warn(MPL,
+                  56,
+                  "Macro {} was moved {} DBU during clipping after snapping "
+                  "(dx={}, dy={}). This may cause pins to go off routing grid.",
+                  inst->getName(),
+                  total_movement,
+                  movement_x,
+                  movement_y);
+  }
 
   // update bbox for the debug print
   inst_bbox = inst->getBBox()->getBox();

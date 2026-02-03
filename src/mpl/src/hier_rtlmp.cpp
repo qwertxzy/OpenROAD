@@ -3268,6 +3268,51 @@ void Snapper::snapPinToPosition(odb::dbITerm* pin,
 {
   int origin = position - getPinOffset(pin, direction);
   alignWithManufacturingGrid(origin);
+
+  // Ensure the origin keeps the macro within core boundaries
+  if (!isOriginWithinCore(origin, direction)) {
+    // Find the nearest manufacturing-grid-aligned position that keeps macro within core
+    odb::Rect core = inst_->getDb()->getChip()->getBlock()->getCoreArea();
+    odb::Rect macro_bbox = inst_->getBBox()->getBox();
+    const int manufacturing_grid = inst_->getDb()->getTech()->getManufacturingGrid();
+
+    int min_origin, max_origin;
+    if (direction == odb::dbTechLayerDir::VERTICAL) {
+      min_origin = core.xMin();
+      max_origin = core.xMax() - macro_bbox.dx();
+    } else {
+      min_origin = core.yMin();
+      max_origin = core.yMax() - macro_bbox.dy();
+    }
+
+    // Find the nearest grid-aligned position within [min_origin, max_origin]
+    int clamped = std::max(min_origin, std::min(origin, max_origin));
+    int grid_below = (clamped / manufacturing_grid) * manufacturing_grid;
+    int grid_above = grid_below + manufacturing_grid;
+
+    // Choose the closest valid grid position
+    if (grid_below >= min_origin && grid_below <= max_origin) {
+      if (grid_above <= max_origin) {
+        // Both valid, choose closer one
+        origin = (std::abs(clamped - grid_below) <= std::abs(clamped - grid_above))
+                     ? grid_below
+                     : grid_above;
+      } else {
+        origin = grid_below;
+      }
+    } else if (grid_above >= min_origin && grid_above <= max_origin) {
+      origin = grid_above;
+    } else {
+      // Fallback: use min_origin aligned to grid
+      origin = min_origin;
+      alignWithManufacturingGrid(origin);
+      // If rounding pushed it beyond max, use the grid position before
+      if (origin > max_origin) {
+        origin -= manufacturing_grid;
+      }
+    }
+  }
+
   setOrigin(origin, direction);
 }
 
@@ -3314,6 +3359,16 @@ void Snapper::attemptSnapToExtraPatterns(
         || current_index >= layers_data_list[0].available_positions.size()) {
       continue;
     }
+
+    // Calculate what the origin would be for this position and check if it's within core
+    int candidate_origin = positions[current_index] - getPinOffset(snap_pin, target_direction);
+    alignWithManufacturingGrid(candidate_origin);
+
+    if (!isOriginWithinCore(candidate_origin, target_direction)) {
+      // Skip this candidate - it would place the macro outside core
+      continue;
+    }
+
     snapPinToPosition(snap_pin, positions[current_index], target_direction);
 
     int snapped_pins = totalAlignedPins(layers_data_list, target_direction);
@@ -3396,6 +3451,24 @@ void Snapper::alignWithManufacturingGrid(int& origin)
 
   origin = std::round(origin / static_cast<double>(manufacturing_grid))
            * manufacturing_grid;
+}
+
+bool Snapper::isOriginWithinCore(int origin, const odb::dbTechLayerDir& direction)
+{
+  odb::Rect core = inst_->getDb()->getChip()->getBlock()->getCoreArea();
+  odb::Rect macro_bbox = inst_->getBBox()->getBox();
+
+  if (direction == odb::dbTechLayerDir::VERTICAL) {
+    // Check if X coordinate would place macro within core
+    int macro_xmin = origin;
+    int macro_xmax = origin + macro_bbox.dx();
+    return (macro_xmin >= core.xMin() && macro_xmax <= core.xMax());
+  } else {
+    // Check if Y coordinate would place macro within core
+    int macro_ymin = origin;
+    int macro_ymax = origin + macro_bbox.dy();
+    return (macro_ymin >= core.yMin() && macro_ymax <= core.yMax());
+  }
 }
 
 }  // namespace mpl
